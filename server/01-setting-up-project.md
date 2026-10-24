@@ -166,7 +166,8 @@ pnpm add -D oxlint oxlint-tsgolint
 		"no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
 		"no-console": ["warn", { "allow": ["warn", "error"] }],
 		"typescript/no-floating-promises": "error",
-		"typescript/consistent-type-imports": "error"
+		"typescript/consistent-type-imports": "error",
+		"import/no-unassigned-import": ["warn", { "allow": ["dotenv/config"] }]
 	},
 	"ignorePatterns": ["dist/**", "coverage/**", "src/generated/**"]
 }

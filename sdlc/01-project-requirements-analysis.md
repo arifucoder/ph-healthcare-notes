@@ -133,3 +133,6 @@ flowchart TB
 - শুধু Patient self-register + social login করতে পারে।
 - Many-to-Many হলে সবসময় মাঝখানে bridge table: `DoctorSpecialty`, `DoctorSchedule`।
 - Appointment-এর time আসে `DoctorSchedule` থেকে; payment-এর পর booking confirm; তারপর video call।
+
+
+db erd: https://drive.google.com/file/d/1zEVQcl3z6Hk017BgMW98hg6ihPTCijvc/view?usp=sharing 

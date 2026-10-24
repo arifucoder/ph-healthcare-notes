@@ -136,3 +136,5 @@ flowchart TB
 
 
 db erd: https://drive.google.com/file/d/1zEVQcl3z6Hk017BgMW98hg6ihPTCijvc/view?usp=sharing 
+
+email: arifcatch@gmail.com

@@ -162,14 +162,15 @@ src/generated
 
 ```ts
 import "dotenv/config";
+import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../../generated/prisma/client";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 
 export const prisma = new PrismaClient({ adapter });
 ```
 
+- `PrismaClient` → `@/generated/prisma/client` থেকে import করতে হবে (generate করা client)। ⚠️ `@prisma/client` বা `@prisma/client/extension` থেকে import করলে error আসবে: `@prisma/client did not initialize yet`
 - `PrismaPg` → `pg` driver দিয়ে connect করে
 - `!` → TypeScript কে বলা "এটা undefined হবে না"
 

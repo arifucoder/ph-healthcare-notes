@@ -87,7 +87,8 @@ import { defineConfig } from "prisma/config";
 export default defineConfig({
   schema: "prisma/schema", // file না, পুরো folder
   migrations: {
-    path: "prisma/schema/migrations",
+    // path: "prisma/schema/migrations", // eta dile schema folder er vitore migrations folder o hobe som amra folder er baire rakhte chaichi 
+    path: "prisma/migrations",
   },
   datasource: {
     url: process.env["DATABASE_URL"],

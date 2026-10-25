@@ -92,6 +92,15 @@ pnpm migrate
 pnpm generate
 ```
 
+> 💡 এগুলো `package.json` এর scripts এ আগেই set করা আছে ([02-prisma-setup](./02-prisma-setup.md) এ বানিয়েছিলাম):
+>
+> ```json
+> "migrate": "prisma migrate dev",
+> "generate": "prisma generate",
+> ```
+>
+> অর্থাৎ `pnpm migrate` = `prisma migrate dev`, `pnpm generate` = `prisma generate`
+
 > ⚠️ **`pnpm dlx auth@latest migrate` চালাবো না!**
 > ওটা শুধু **Kysely adapter** এর জন্য। আমরা Prisma use করি, তাই আমাদের নিজের `pnpm migrate` ই চালাতে হবে।
 
@@ -398,3 +407,67 @@ router.use("/auth", AuthRoutes);
 | Enums (Role, UserStatus) | `prisma/schema/enums.prisma` |
 | Auth module | `src/app/module/auth/` |
 | Migrate | `pnpm migrate` ✅ (`auth migrate` ❌) |
+
+---
+
+## 🤖 Claude Recommendation
+
+> এগুলো শুধু suggestion — উপরের code কাজ করছে, তাই কিছু বদলানো হয়নি। সময় করে improve করতে পারো।
+
+### 🔴 গুরুত্বপূর্ণ (Security)
+
+**১. `console.log(payload)` সরিয়ে দাও (auth.controller.ts)**
+Register এর payload এ **password** আছে — এটা terminal/log এ plain text এ print হচ্ছে। Production এ log এ password থাকা বড় security risk।
+
+**২. Blocked/Deleted check — login এর আগে করো**
+এখন `signInEmail` আগে চলে, তারপর status check হয়। মানে blocked user এর জন্যও **session তৈরি হয়ে DB তে save হয়ে যায়**, শুধু response এ error যায়।
+Better: আগে `prisma.user.findUnique({ where: { email } })` দিয়ে status check করো, তারপর `signInEmail` call করো।
+
+**৩. `additionalFields` এ `input: false` দাও**
+`role`, `status`, `isDeleted` ইত্যাদি field যেন user নিজে sign up এর সময় পাঠিয়ে set করতে না পারে (যেমন নিজেকে `SUPER_ADMIN` বানানো):
+
+```ts
+role: {
+	type: "string",
+	required: true,
+	defaultValue: Role.PATIENT,
+	input: false, // user এটা পাঠাতে পারবে না
+},
+```
+
+### 🟡 ভালো practice
+
+**৪. `import` → `import type` (auth.controller.ts)**
+`import { Request, Response } from "express"` — tsconfig এ `verbatimModuleSyntax: true` আছে, তাই `pnpm typecheck` / `pnpm build` এ error দিতে পারে (`pnpm dev` এ tsx type check করে না বলে ধরা পড়ে না)।
+
+```ts
+import type { Request, Response } from "express";
+```
+
+**৫. Error এর সঠিক status code**
+এখন `throw new Error("User is blocked")` → `catchAsync` সবসময় **500** পাঠায়। কিন্তু এটা server error না:
+- Blocked / Deleted → `403 Forbidden`
+- ভুল password → `401 Unauthorized`
+
+পরে একটা custom `AppError(statusCode, message)` class + global error handler বানালে এটা ঠিক হবে।
+
+**৬. Request body validation**
+`req.body` সরাসরি service এ যাচ্ছে। `zod` দিয়ে validate করলে ভুল data (খালি email, ছোট password) আগেই আটকানো যাবে।
+
+**৭. Import style একই রাখো**
+কোথাও `@/generated/...` (alias), কোথাও `../../../generated/...` (relative)। সব জায়গায় `@/` alias use করলে পড়তে সহজ, file move করলেও ভাঙবে না।
+
+**৮. Comment এ নামের ভুল**
+`auth.service.ts` এর comment এ `needsPasswordChange` লেখা, কিন্তু field এর নাম `needPasswordChange` — পরে uncomment করলে কাজ করবে না।
+
+### 🔵 পরে কাজে লাগবে
+
+**৯. Cookie / Session token**
+`auth.api.signInEmail()` server থেকে call করলে browser এ **cookie set হয় না** — token শুধু response body তে আসে। Frontend (Next.js) এ cookie লাগলে `returnHeaders: true` বা `asResponse: true` option দেখো।
+
+**১০. Patient profile transaction**
+TODO তে `prisma.$transaction` এর কথা আছে, কিন্তু `signUpEmail` Prisma transaction এর **ভেতরে চলবে না** (Better Auth নিজের মতো DB call করে)। তাই:
+sign up → patient create → patient create fail হলে **user টা delete করে দাও** (rollback এর মতো)।
+
+**১১. Frontend connect করার সময়**
+`auth.ts` এ `trustedOrigins: ["http://localhost:3000"]` লাগবে, আর `cors()` এ `origin` + `credentials: true` দিতে হবে।

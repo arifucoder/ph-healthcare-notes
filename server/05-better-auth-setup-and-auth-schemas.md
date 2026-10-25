@@ -256,9 +256,9 @@ export const AuthRoutes = router;
 ### 10.2 auth.controller.ts
 
 ```ts
-import { Request, Response } from "express";
-import { catchAsync } from "../../shared/catchAsync";
-import { sendResponse } from "../../shared/sendResponse";
+import { catchAsync } from "@/app/shared/catchAsync";
+import { sendResponse } from "@/app/shared/sendResponse";
+import type { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 
 const registerPatient = catchAsync(
@@ -303,8 +303,8 @@ export const AuthController = {
 - **Login:** যেকোনো role এর user login করতে পারবে, কিন্তু `BLOCKED` / `DELETED` হলে error
 
 ```ts
-import { UserStatus } from "../../../generated/prisma/enums";
-import { auth } from "../../lib/auth";
+import { auth } from "@/app/lib/auth";
+import { UserStatus } from "@/generated/prisma/enums";
 
 interface IRegisterPatientPayload {
     name: string;
@@ -437,7 +437,7 @@ role: {
 
 ### 🟡 ভালো practice
 
-**৪. `import` → `import type` (auth.controller.ts)**
+**৪. ✅ (Done) `import` → `import type` (auth.controller.ts)**
 `import { Request, Response } from "express"` — tsconfig এ `verbatimModuleSyntax: true` আছে, তাই `pnpm typecheck` / `pnpm build` এ error দিতে পারে (`pnpm dev` এ tsx type check করে না বলে ধরা পড়ে না)।
 
 ```ts
@@ -454,7 +454,7 @@ import type { Request, Response } from "express";
 **৬. Request body validation**
 `req.body` সরাসরি service এ যাচ্ছে। `zod` দিয়ে validate করলে ভুল data (খালি email, ছোট password) আগেই আটকানো যাবে।
 
-**৭. Import style একই রাখো**
+**৭. ✅ (Done) Import style একই রাখো**
 কোথাও `@/generated/...` (alias), কোথাও `../../../generated/...` (relative)। সব জায়গায় `@/` alias use করলে পড়তে সহজ, file move করলেও ভাঙবে না।
 
 **৮. Comment এ নামের ভুল**

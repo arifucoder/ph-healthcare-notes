@@ -64,15 +64,41 @@ export const catchAsync = (fn: RequestHandler) => {
 
 ---
 
-## ৩. sendResponse — `src/app/shared/sendResponse.ts`
+## ৩. Controller এ catchAsync use করা
 
-Success response ও প্রতিবার repeat হচ্ছে:
+এখন controller এ আর `try/catch` লিখতে হবে না — শুধু try এর ভেতরের অংশটা `catchAsync` এর ভেতরে পাঠাবো:
 
 ```ts
-res.status(201).json({ success: true, message: "...", data: result });
+const createSpecialty = catchAsync(async (req: Request, res: Response) => {
+	const payload = req.body;
+	const result = await SpecialtyService.createSpecialty(payload);
+
+	res.status(201).json({
+		success: true,
+		message: "Specialty created successfully",
+		data: result,
+	});
+});
 ```
 
-তাই:
+> ✏️ `specialtyService` → **`SpecialtyService`** (service file এ capital S দিয়ে export করেছি)
+
+**কিন্তু এখনো একটা সমস্যা:** এই অংশটা প্রতিটা controller এ **repeat** হচ্ছে:
+
+```ts
+res.status(201).json({
+	success: true,
+	message: "Specialty created successfully",
+	data: result,
+});
+```
+
+এর জন্য বানাবো `sendResponse` 👇
+
+---
+
+## ৪. sendResponse — `src/app/shared/sendResponse.ts`
+
 
 ```ts
 import type { Response } from "express";
@@ -103,7 +129,27 @@ export const sendResponse = <T>(res: Response, responseData: IResponseData<T>): 
 
 ---
 
-## ৪. Controller — আগে vs পরে
+## ৫. Controller এ sendResponse use করা
+
+`res.status().json()` এর বদলে এখন `sendResponse` call করবো:
+
+```ts
+const createSpecialty = catchAsync(async (req: Request, res: Response) => {
+	const payload = req.body;
+	const result = await SpecialtyService.createSpecialty(payload);
+
+	sendResponse(res, {
+		httpStatusCode: 201,
+		success: true,
+		message: "Specialty created successfully",
+		data: result,
+	});
+});
+```
+
+---
+
+## ৬. পুরো তুলনা — আগে vs পরে
 
 **আগে (প্রতিটায় ~20 লাইন):**
 
@@ -170,7 +216,6 @@ export const SpecialtyController = {
 ```
 
 **খেয়াল করো:**
-- ✏️ `specialtyService` → **`SpecialtyService`** (service file এ capital S দিয়ে export করেছি)
 - `deleteSpecialty` এ আগের নোটের `Request<{ id: string }>` এখানে দিলে error আসবে, কারণ `catchAsync` সাধারণ `RequestHandler` নেয়। তাই এখানে `req.params.id as string` লিখেছি।
 - এখন আর কোনো controller এ `try/catch` নেই, আর response সব একই format এ যায় ✅
 

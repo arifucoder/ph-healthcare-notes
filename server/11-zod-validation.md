@@ -185,12 +185,51 @@ Note 10-এর body দিয়ে পাঠালে আগের মতোই
 ```ts
 import * as z from "zod";
 
-export const updateDoctorZodSchema = z.object({}).partial()
+export const updateDoctorZodSchema = z
+	.strictObject({
+		name: z
+			.string("Name must be a string")
+			.trim()
+			.min(3, "Name must be at least 3 characters")
+			.max(30, "Name must be at most 30 characters"),
+
+		profilePhoto: z.url("Profile photo must be a valid URL"),
+
+		contactNumber: z
+			.string("Contact number must be a string")
+			.trim()
+			.regex(/^(\+?880|0)1[3-9]\d{8}$/, "Invalid Bangladeshi phone number"),
+
+		address: z
+			.string("Address must be a string")
+			.trim()
+			.min(10, "Address must be at least 10 characters")
+			.max(100, "Address must be at most 100 characters"),
+
+		experience: z.int("Experience must be an integer").nonnegative("Experience cannot be negative"),
+	})
+	.partial()
+	.refine((data) => Object.keys(data).length > 0, "At least one field is required to update");
 ```
 
 Update-এর সময় সব field লাগে না, তাই `.partial()` দিই। এতে সব field optional হয়ে যায়।
 
-> এখানে `z.object({})` এখনো খালি (placeholder)। পরে update-এর field যোগ হবে।
+| অংশ | কেন |
+|---|---|
+| `z.strictObject` | schema-র বাইরের field (যেমন `email`, `registrationNumber`, `isDeleted`) পাঠালে চুপচাপ বাদ না দিয়ে **error** দেয়। ফলে কেউ বুঝতে পারে ওই field update করা যায় না |
+| `.partial()` | সব field optional, যেটা পাঠাবে শুধু সেটাই update |
+| `.refine(...)` | খালি body `{}` পাঠালে error, অকারণে DB-তে update query যাবে না |
+| নিজের message | create schema-র মতোই পরিষ্কার error message |
+
+> ✅ (Done) আগে এখানে খালি `z.object({}).partial()` ছিল। খালি schema দিয়ে validate করলে Zod সব field ফেলে দিত আর `req.body` হয়ে যেত `{}`। এখন `IUpdateDoctorPayload`-এর field-গুলো যোগ হয়েছে, আর `z.object`-এর বদলে `z.strictObject` ব্যবহার করা হয়েছে।
+
+**Test (route বসানোর পর):**
+
+| Body | ফলাফল |
+|---|---|
+| `{ "experience": 10 }` | ✅ pass |
+| `{ "email": "new@example.com" }` | ❌ unrecognized key error |
+| `{}` | ❌ "At least one field is required to update" |
 
 ---
 
@@ -212,7 +251,7 @@ Update-এর সময় সব field লাগে না, তাই `.partial
 ## 🔜 পরে যা যোগ হবে
 
 - [ ] Zod error handler → `globalErrorHandler`-এ `ZodError` আলাদা করে সুন্দর response (38-07-এর শিরোনামে আছে, কিন্তু code নোটে ছিল না; note 09-এর checklist-এও আছে)
-- [ ] `updateDoctorZodSchema`-এ আসল field যোগ করা
+- [x] `updateDoctorZodSchema`-এ আসল field যোগ করা ✅
 - [ ] `req.params` / `req.query` validation
 - [ ] env variables Zod দিয়ে validate (note 06)
 - [ ] File (profile photo) validation
@@ -225,20 +264,7 @@ Update-এর সময় সব field লাগে না, তাই `.partial
 
 ### 🔴 গুরুত্বপূর্ণ
 
-1. **খালি `z.object({})` দিয়ে validate করলে body পুরো ফাঁকা হয়ে যাবে** — Zod default-ভাবে schema-র বাইরের সব field ফেলে দেয়। `updateDoctorZodSchema` এখন যেমন আছে, সেটা route-এ বসালে `req.body` হয়ে যাবে `{}`, আর update কিছুই হবে না। Route-এ বসানোর আগে field যোগ করো:
-   ```ts
-   export const updateDoctorZodSchema = z
-   	.object({
-   		name: z.string().trim().min(3).max(30),
-   		profilePhoto: z.url(),
-   		contactNumber: z.string().trim().regex(/^(\+?880|0)1[3-9]\d{8}$/),
-   		address: z.string().trim().min(10).max(100),
-   		experience: z.int().nonnegative(),
-   	})
-   	.partial();
-   ```
-
-2. **Zod error handler এখনো নেই (সম্ভবত)** — note 09-এর simple handler `ZodError` পেলে সম্ভবত 500 আর একটা লম্বা JSON string message দেখাবে। 400 status আর field-wise message দিলে frontend-এর জন্য সহজ হবে:
+1. **Zod error handler এখনো নেই (সম্ভবত)** — note 09-এর simple handler `ZodError` পেলে সম্ভবত 500 আর একটা লম্বা JSON string message দেখাবে। 400 status আর field-wise message দিলে frontend-এর জন্য সহজ হবে:
    ```ts
    import { ZodError } from "zod";
 
@@ -254,22 +280,26 @@ Update-এর সময় সব field লাগে না, তাই `.partial
 
 ### 🟡 ভালো practice
 
-3. **Unused `res` → `_res`** — `validateRequest`-এ `res` ব্যবহার হয়নি। oxlint unused args-এ `_` দিয়ে শুরু হলে warning দেয় না।
+2. **Unused `res` → `_res`** — `validateRequest`-এ `res` ব্যবহার হয়নি। oxlint unused args-এ `_` দিয়ে শুরু হলে warning দেয় না।
    ```ts
    return async (req: Request, _res: Response, next: NextFunction) => { ... };
    ```
 
-4. **`contactNumber` Zod-এ required, কিন্তু Prisma ও `ICreateDoctorPayload`-এ optional** — যেকোনো এক নিয়ম রাখো। Required রাখতে চাইলে interface-এও `contactNumber: string` করো, নইলে Zod-এ `.optional()` দাও।
+3. **`contactNumber` Zod-এ required, কিন্তু Prisma ও `ICreateDoctorPayload`-এ optional** — যেকোনো এক নিয়ম রাখো। Required রাখতে চাইলে interface-এও `contactNumber: string` করো, নইলে Zod-এ `.optional()` দাও।
 
-5. **Interface হাতে না লিখে Zod থেকে type বানাও** — দুই জায়গায় একই জিনিস লিখলে একসময় মিল থাকবে না (৪ নম্বরের মতো):
+4. **Interface হাতে না লিখে Zod থেকে type বানাও** — দুই জায়গায় একই জিনিস লিখলে একসময় মিল থাকবে না (৩ নম্বরের মতো):
    ```ts
    export type ICreateDoctorPayload = z.infer<typeof createDoctorZodSchema>;
    ```
 
 ### 🔵 পরে কাজে লাগবে / জেনে রাখো
 
-6. **`profilePhoto` schema-তে নেই, তাই strip হয়ে যাবে** — কেউ body-তে `profilePhoto` পাঠালেও Zod ফেলে দেবে, DB-তে যাবে না। সম্ভবত পরে file upload দিয়ে আসবে, তাই এখন ঠিক আছে।
+5. **`profilePhoto` schema-তে নেই, তাই strip হয়ে যাবে** — কেউ body-তে `profilePhoto` পাঠালেও Zod ফেলে দেবে, DB-তে যাবে না। সম্ভবত পরে file upload দিয়ে আসবে, তাই এখন ঠিক আছে।
 
-7. **`z.uuid()` কড়া check করে** — RFC অনুযায়ী version/variant bit-ও দেখে। Prisma-র `uuid(7)` আর সাধারণ v4 id দুটোই pass করবে, কিন্তু হাতে বানানো ভুয়া id (যেমন `11111111-1111-1111-1111-111111111111`) fail করবে। ঢিলা check লাগলে `z.guid()` আছে।
+6. **`z.uuid()` কড়া check করে** — RFC অনুযায়ী version/variant bit-ও দেখে। Prisma-র `uuid(7)` আর সাধারণ v4 id দুটোই pass করবে, কিন্তু হাতে বানানো ভুয়া id (যেমন `11111111-1111-1111-1111-111111111111`) fail করবে। ঢিলা check লাগলে `z.guid()` আছে।
 
-8. **Unknown field-এ error দিতে চাইলে `z.strictObject()`** — default-এ বাড়তি field চুপচাপ বাদ পড়ে। বাড়তি field পাঠালে error দিতে চাইলে `z.object` এর জায়গায় `z.strictObject` ব্যবহার করো।
+7. **Unknown field-এ error দিতে চাইলে `z.strictObject()`** — default-এ বাড়তি field চুপচাপ বাদ পড়ে। বাড়তি field পাঠালে error দিতে চাইলে `z.object` এর জায়গায় `z.strictObject` ব্যবহার করো। (update schema-তে ✅ Done; create schema-তে চাইলে একইভাবে দেওয়া যায়)
+
+### ✅ (Done)
+
+- **খালি `z.object({})`-এর বদলে আসল field + `z.strictObject`** — `updateDoctorZodSchema`-এ `name`, `profilePhoto`, `contactNumber`, `address`, `experience` যোগ হয়েছে। বাড়তি field-এ error দিতে `z.strictObject`, আর খালি body আটকাতে `.refine` (ধাপ ৫ দেখো)।

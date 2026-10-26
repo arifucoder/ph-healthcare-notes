@@ -13,10 +13,12 @@ Controller এ error → catchAsync → next(error) → globalErrorHandler → e
 ## ধাপ ১: Simple global error handler (app.ts এ)
 
 ```ts
+import httpStatus from "http-status";
+
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);
 
-  res.status(500).json({
+  res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
     success: false,
     message: "Internal Server Error",
     error: err instanceof Error ? err.message : "unknown error",
@@ -51,6 +53,7 @@ src/app/middleware/
 
 ```ts
 import type { NextFunction, Request, Response } from "express";
+import httpStatus from "http-status";
 
 export const globalErrorHandler = (
     err: unknown,
@@ -60,7 +63,7 @@ export const globalErrorHandler = (
 ) => {
     console.error(err);
 
-    res.status(500).json({
+    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
        success: false,
        message: "Internal Server Error",
        error: err instanceof Error ? err.message : "unknown error",
@@ -71,6 +74,7 @@ export const globalErrorHandler = (
 - `err: unknown` → error যেকোনো কিছু হতে পারে, তাই `any` না দিয়ে `unknown`। `instanceof Error` দিয়ে check করে তারপর `.message` নিচ্ছি (type-safe)
 - `_req`, `_next` → use হচ্ছে না, তাই `_` দিয়ে শুরু — oxlint warning দেবে না। নাম বদলালেও parameter **৪টাই** আছে, তাই Express এখনো error handler হিসেবেই চেনে
 - `console.error` → আমাদের `no-console` rule এ শুধু `warn` / `error` allowed
+- `httpStatus.INTERNAL_SERVER_ERROR` → `500` এর বদলে নাম দিয়ে লেখা (http-status package), পড়তে সহজ
 
 ---
 
@@ -140,6 +144,7 @@ export const catchAsync = (fn: RequestHandler) => {
 3. `console.log` → `console.error`
 4. `catchAsync` এ `error: any` → `error`
 5. globalErrorHandler এ `any` → `unknown` + `instanceof Error` check
+6. `500` → `httpStatus.INTERNAL_SERVER_ERROR`
 
 ### 🔵 জেনে রাখো
 

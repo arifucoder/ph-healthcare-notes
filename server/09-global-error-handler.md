@@ -13,14 +13,13 @@ Controller এ error → catchAsync → next(error) → globalErrorHandler → e
 ## ধাপ ১: Simple global error handler (app.ts এ)
 
 ```ts
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.log(err);
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(err);
 
   res.status(500).json({
     success: false,
-    message: 'Internal Server Error',
-    error: err.message,
+    message: "Internal Server Error",
+    error: err instanceof Error ? err.message : "unknown error",
   });
 });
 ```
@@ -53,17 +52,25 @@ src/app/middleware/
 ```ts
 import type { NextFunction, Request, Response } from "express";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const globalErrorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
-    console.log(err);
+export const globalErrorHandler = (
+    err: unknown,
+    _req: Request,
+    res: Response,
+    _next: NextFunction,
+) => {
+    console.error(err);
 
     res.status(500).json({
        success: false,
        message: "Internal Server Error",
-       error: err.message,
+       error: err instanceof Error ? err.message : "unknown error",
     });
 };
 ```
+
+- `err: unknown` → error যেকোনো কিছু হতে পারে, তাই `any` না দিয়ে `unknown`। `instanceof Error` দিয়ে check করে তারপর `.message` নিচ্ছি (type-safe)
+- `_req`, `_next` → use হচ্ছে না, তাই `_` দিয়ে শুরু — oxlint warning দেবে না। নাম বদলালেও parameter **৪টাই** আছে, তাই Express এখনো error handler হিসেবেই চেনে
+- `console.error` → আমাদের `no-console` rule এ শুধু `warn` / `error` allowed
 
 ---
 
@@ -97,12 +104,14 @@ export const catchAsync = (fn: RequestHandler) => {
     return async (req: Request, res: Response, next: NextFunction) => {
        try {
           await fn(req, res, next);
-       } catch (error: any) {
+       } catch (error) {
           next(error);
        }
     };
 };
 ```
+
+> `error: any` লাগে না — `next()` যেকোনো type নেয়।
 
 **`next(error)` কী করে?**
 `next()` এ কিছু পাঠালে Express বোঝে **error হয়েছে** — তখন মাঝের সব সাধারণ middleware skip করে সরাসরি **error handler** (৪ parameter ওয়ালা) এ চলে যায়।
@@ -124,37 +133,13 @@ export const catchAsync = (fn: RequestHandler) => {
 
 > এগুলো শুধু suggestion — উপরের code বদলানো হয়নি।
 
-### 🟡 ভালো practice
+### ✅ (Done) — code এ apply করা হয়েছে
 
-**১. Unused parameter এ `_` দাও**
-`req` আর `next` use হচ্ছে না, তাই oxlint `no-unused-vars` warning দেবে। আমাদের `.oxlintrc.json` এ `_` দিয়ে শুরু হলে ignore হয়:
-
-```ts
-export const globalErrorHandler = (err: any, _req: Request, res: Response, _next: NextFunction) => {
-```
-
-> নাম বদলালেও parameter **৪টাই** থাকছে, তাই Express এখনো error handler হিসেবেই চিনবে।
-
-**২. `eslint-disable` comment অপ্রয়োজনীয়**
-আমরা oxlint use করি, eslint না — তাই `// eslint-disable-next-line ...` লাইনটা কোনো কাজ করছে না। মুছে দিতে পারো।
-
-**৩. `console.log` → `console.error`**
-আমাদের `no-console` rule এ শুধু `warn` আর `error` allowed।
-
-**৪. `catchAsync` এ `error: any` লাগে না**
-`next(error)` যেকোনো type নেয়, তাই শুধু `catch (error)` লিখলেই হয়।
-
-**৫. `any` এর বদলে `unknown` (globalErrorHandler এ)**
-
-```ts
-(err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    res.status(500).json({
-        success: false,
-        message: "Internal Server Error",
-        error: err instanceof Error ? err.message : "unknown error",
-    });
-};
-```
+1. Unused parameter এ `_` (`_req`, `_next`)
+2. `eslint-disable` comment মুছে ফেলা (আমরা oxlint use করি)
+3. `console.log` → `console.error`
+4. `catchAsync` এ `error: any` → `error`
+5. globalErrorHandler এ `any` → `unknown` + `instanceof Error` check
 
 ### 🔵 জেনে রাখো
 

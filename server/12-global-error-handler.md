@@ -117,7 +117,6 @@ export const handleZodError = (err: ZodError): TGenericErrorResponse => {
 ## ধাপ ৩: `src/app/middleware/globalErrorHandler.ts` update
 
 ```ts
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import type { NextFunction, Request, Response } from "express";
 import httpStatus from "http-status";
 import { ZodError } from "zod"; // ✅ value import, কারণ instanceof-এ লাগবে
@@ -126,7 +125,7 @@ import AppError from "../errorHelpers/AppError";
 import { handleZodError } from "../errorHelpers/handleZodError";
 import type { TErrorResponse, TErrorSources } from "../interfaces/error.interface";
 
-export const globalErrorHandler = (err: unknown, req: Request, res: Response, next: NextFunction) => {
+export const globalErrorHandler = (err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const isDev = envVars.NODE_ENV === "development";
 
     if (isDev) {
@@ -167,6 +166,8 @@ export const globalErrorHandler = (err: unknown, req: Request, res: Response, ne
     res.status(statusCode).json(errorResponse);
 };
 ```
+
+> ✏️ eslint-disable comment সরানো হয়েছে (আমরা oxlint ব্যবহার করি) — unused param-এ `_` দেওয়া হয়েছে (`_req`, `_next`)।
 
 **কোন error-এ কী হয়:**
 
@@ -253,13 +254,7 @@ Service-এ `throw new AppError(httpStatus.NOT_FOUND, "Specialty not found")` �
 
 ### 🟡 ভালো practice
 
-3. **`eslint-disable` comment কাজ করে না, unused param-এ `_` দাও** — আমরা oxlint ব্যবহার করি, তাই comment-টা বেকার (note 09-এ এটা মুছেও ফেলা হয়েছিল)। `req`, `next` ব্যবহার হয়নি:
-   ```ts
-   export const globalErrorHandler = (err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-   ```
-   (parameter ৪টাই থাকছে, তাই Express এখনো error handler হিসেবেই চিনবে)
-
-4. **`notFound` আর `globalErrorHandler`-এর order** — note 09-এ `globalErrorHandler` আগে আর `notFound` পরে বসানো। পরে `notFound` থেকে `next(new AppError(...))` পাঠাতে চাইলে `globalErrorHandler` সবার শেষে থাকতে হবে:
+3. **`notFound` আর `globalErrorHandler`-এর order** — note 09-এ `globalErrorHandler` আগে আর `notFound` পরে বসানো। পরে `notFound` থেকে `next(new AppError(...))` পাঠাতে চাইলে `globalErrorHandler` সবার শেষে থাকতে হবে:
    ```ts
    app.use(notFound);
    app.use(globalErrorHandler);
@@ -267,9 +262,9 @@ Service-এ `throw new AppError(httpStatus.NOT_FOUND, "Specialty not found")` �
 
 ### 🔵 পরে কাজে লাগবে / জেনে রাখো
 
-5. **dev-এ `error` অনেক সময় `{}` দেখাবে (সম্ভবত)** — `Error`-এর `message`/`stack` enumerable না, তাই `res.json()` সাধারণ `Error`-কে `{}` বানিয়ে দেয়। (`ZodError`-এর `issues` ঠিকই দেখাবে।) চাইলে:
+4. **dev-এ `error` অনেক সময় `{}` দেখাবে (সম্ভবত)** — `Error`-এর `message`/`stack` enumerable না, তাই `res.json()` সাধারণ `Error`-কে `{}` বানিয়ে দেয়। (`ZodError`-এর `issues` ঠিকই দেখাবে।) চাইলে:
    ```ts
    error: isDev ? (err instanceof Error ? { name: err.name, message: err.message } : err) : undefined,
    ```
 
-6. **Naming** — module-এর interface-গুলো `I` দিয়ে শুরু (`ICreateDoctorPayload`), এখানে `T` দিয়ে। কাজে সমস্যা নেই, শুধু একটা নিয়ম রাখলে খুঁজতে সহজ।
+5. **Naming** — module-এর interface-গুলো `I` দিয়ে শুরু (`ICreateDoctorPayload`), এখানে `T` দিয়ে। কাজে সমস্যা নেই, শুধু একটা নিয়ম রাখলে খুঁজতে সহজ।

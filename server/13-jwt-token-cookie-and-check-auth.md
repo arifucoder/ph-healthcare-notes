@@ -148,10 +148,10 @@ const SESSION_MAX_AGE = Number(envVars.BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN) * 1
 const isProduction = envVars.NODE_ENV === "production";
 
 // set আর clear দুই জায়গাতেই একই options লাগে
-// sameSite: "none" সবসময়: Browser SameSite=None cookie শুধু Secure থাকলেই নেয়। Development-এ secure: false, তাই browser cookie-টা ফেলে দিত। Postman এই নিয়ম মানে না বলে এখন ধরা পড়েনি, frontend লাগানোর পর পড়ত। আপনার comment করা লাইনটা (isProduction ? "none" : "lax") ঠিক ছিল, সেটাই বসিয়েছি।
 const baseCookieOptions: CookieOptions = {
-    httpOnly: true,
-    secure: isProduction,
+    httpOnly: true, // JS (document.cookie) দিয়ে পড়া যাবে না
+    secure: isProduction, // production-এ শুধু HTTPS-এ cookie যাবে
+    // ⚠️ "none" দিলে secure: true লাগবেই, নইলে browser cookie ফেলে দেয় (নিচে বিস্তারিত)
     sameSite: isProduction ? "none" : "lax",
     path: "/",
 };
@@ -208,9 +208,63 @@ export const tokenUtils = {
 };
 ```
 
-> ✏️ সংশোধন ১ — `sameSite`: নোটে ছিল সবসময় `sameSite: "none"`, আর `isProduction ? "none" : "lax"` লাইনটা comment করা ছিল। Browser `SameSite=None` cookie শুধু `Secure` থাকলেই নেয়। Development-এ `secure: false`, তাই browser (frontend) cookie-টা **ফেলে দিত** (Postman-এ ধরা পড়ে না, Postman এই নিয়ম মানে না)। তাই comment করা লাইনটাই ঠিক। `localhost:3000` আর `localhost:5000` একই site (port আলাদা হলেও), তাই dev-এ `lax`-এই cookie যাবে।
+> ✏️ সংশোধন ১ — `sameSite`: নোটে ছিল সবসময় `sameSite: "none"`, আর `isProduction ? "none" : "lax"` লাইনটা comment করা ছিল। Comment করা লাইনটাই ঠিক। কেন, সেটা নিচের "🍪 `sameSite` আর `secure`" অংশে বিস্তারিত।
 >
 > ✏️ সংশোধন ২ — `SESSION_MAX_AGE`: নোটে ছিল `ONE_DAY * 7` আর comment-এ `=604800`, কিন্তু ধাপ ৭-এ `.env`-এ `BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN=86400` (১ দিন)। Cookie ৭ দিন আর session ১ দিন — মিল ছিল না। এখন সরাসরি env থেকে হিসাব হয়, তাই হাতে মিলাতে হবে না।
+
+### 🍪 `sameSite` আর `secure` — কেন এটা এত জরুরি
+
+> **এক লাইনে:** `sameSite: "none"` দিলে `secure: true` লাগবেই। নইলে browser cookie-টা চুপচাপ ফেলে দেয় — login "সফল" হয়, কিন্তু cookie save হয় না, আর পরের সব request-এ 401।
+
+**১. দুটো option কী করে?**
+
+| Option | কী বলে দেয় |
+|---|---|
+| `secure: true` | cookie শুধু **HTTPS** দিয়ে যাবে |
+| `sameSite` | **অন্য site** থেকে request গেলে cookie যাবে কিনা |
+
+**২. `sameSite`-এর ৩টা মান**
+
+| মান | অন্য site থেকে request-এ cookie যায়? | কখন |
+|---|---|---|
+| `"strict"` | ❌ কখনো না | খুব কড়া, সাধারণত লাগে না |
+| `"lax"` | ❌ (শুধু link-এ click করে আসলে ✅) | একই site-এ frontend + backend |
+| `"none"` | ✅ সবসময় | frontend আর backend **আলাদা domain**-এ |
+
+**৩. "Same site" মানে কী?**
+Port আর subdomain দেখা হয় না, শুধু মূল domain দেখা হয়।
+
+| Frontend | Backend | Same site? |
+|---|---|---|
+| `localhost:3000` | `localhost:5000` | ✅ হ্যাঁ (port আলাদা হলেও) |
+| `app.mysite.com` | `api.mysite.com` | ✅ হ্যাঁ |
+| `myapp.vercel.app` | `myapi.onrender.com` | ❌ না → `"none"` লাগবে |
+
+**৪. Browser-এর নিয়ম:** `SameSite=None` আছে কিন্তু `Secure` নেই → **cookie reject** (save-ই হবে না)।
+
+**৫. আগের code-এ কী হতো?**
+
+```
+Development: secure: false + sameSite: "none"
+→ browser: "None আছে কিন্তু Secure নেই" → cookie ফেলে দিল ❌
+→ login response 200 ঠিকই আসে, কিন্তু browser-এ কোনো cookie নেই
+→ পরের protected request-এ checkAuth cookie পায় না → 401 😵
+```
+
+**৬. এখনকার code-এ:**
+
+| Environment | `secure` | `sameSite` | কেন কাজ করে |
+|---|---|---|---|
+| Development | `false` | `"lax"` | `localhost:3000` → `localhost:5000` একই site, তাই `lax`-এই cookie যায়; `lax`-এর জন্য `secure` লাগে না |
+| Production | `true` | `"none"` | frontend আর backend আলাদা domain, তাই `none` লাগে; HTTPS আছে, তাই `secure: true` দেওয়া যায় |
+
+**৭. Postman-এ কেন ধরা পড়েনি?**
+Postman browser না, `SameSite` / `Secure`-এর নিয়ম মানে না, সব cookie রেখে দেয়। তাই Postman-এ সব ঠিক দেখায়, কিন্তু frontend (browser) লাগালেই সমস্যা হয়।
+
+**৮. Browser-এ কীভাবে check করবে?**
+DevTools → **Application** → **Cookies** → backend-এর URL। Cookie না থাকলে **Network** tab-এ login request → **Response Headers**-এ `Set-Cookie`-এর পাশে ⚠️ চিহ্ন থাকবে, hover করলে কারণ দেখাবে।
+
+> মনে রাখো: `sameSite: "none"` ⟹ `secure: true` — সবসময় জোড়ায় জোড়ায়।
 
 **`maxAge`-এর একক মনে রাখো:**
 

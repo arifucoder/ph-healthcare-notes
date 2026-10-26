@@ -250,7 +250,7 @@ Update-এর সময় সব field লাগে না, তাই `.partial
 
 ## 🔜 পরে যা যোগ হবে
 
-- [ ] Zod error handler → `globalErrorHandler`-এ `ZodError` আলাদা করে সুন্দর response (38-07-এর শিরোনামে আছে, কিন্তু code নোটে ছিল না; note 09-এর checklist-এও আছে)
+- [x] Zod error handler → `globalErrorHandler`-এ `ZodError` আলাদা করে সুন্দর response → [12-global-error-handler](./12-global-error-handler.md) ✅
 - [x] `updateDoctorZodSchema`-এ আসল field যোগ করা ✅
 - [ ] `req.params` / `req.query` validation
 - [ ] env variables Zod দিয়ে validate (note 06)
@@ -264,7 +264,7 @@ Update-এর সময় সব field লাগে না, তাই `.partial
 
 ### 🔴 গুরুত্বপূর্ণ
 
-1. **Zod error handler এখনো নেই (সম্ভবত)** — note 09-এর simple handler `ZodError` পেলে সম্ভবত 500 আর একটা লম্বা JSON string message দেখাবে। 400 status আর field-wise message দিলে frontend-এর জন্য সহজ হবে:
+1. ✅ (Done → [note 12](./12-global-error-handler.md)) **Zod error handler এখনো নেই (সম্ভবত)** — note 09-এর simple handler `ZodError` পেলে সম্ভবত 500 আর একটা লম্বা JSON string message দেখাবে। 400 status আর field-wise message দিলে frontend-এর জন্য সহজ হবে:
    ```ts
    import { ZodError } from "zod";
 

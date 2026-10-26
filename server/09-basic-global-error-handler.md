@@ -1,6 +1,6 @@
-# 09 - Global Error Handler
+# 09 - Basic Global Error Handler
 
-> 📝 এটা **simple version**। পরে আরও অনেক কিছু যোগ হবে (AppError, Prisma error, Zod error ...) — তখন এই নোট update করবো।
+> 📝 এটা **simple version**। পূর্ণ version (AppError, Zod error, dev/production আলাদা response) → [12-global-error-handler](./12-global-error-handler.md)
 
 **কাজ:** পুরো app এর সব error **এক জায়গায়** handle করা। প্রতিটা controller এ আলাদা করে error response লিখতে হবে না।
 
@@ -126,10 +126,10 @@ export const catchAsync = (fn: RequestHandler) => {
 
 ## 🔜 পরে যা যোগ হবে
 
-- [ ] Custom `AppError` class (নিজের status code সহ error)
+- [x] Custom `AppError` class (নিজের status code সহ error) → note 12
 - [ ] Prisma error handle (যেমন `P2002` duplicate → 409, `P2025` not found → 404)
-- [ ] Zod validation error handle
-- [ ] Development এ `stack` দেখানো, production এ লুকানো
+- [x] Zod validation error handle → note 12
+- [x] Development এ `stack` দেখানো, production এ লুকানো → note 12
 
 ---
 

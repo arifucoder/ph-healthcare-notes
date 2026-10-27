@@ -808,7 +808,7 @@ router.get("/me", checkAuth(), UserController.getMe); // যেকোনো logg
 - [ ] Refresh token route → access token expire হলে নতুন access token
 - [ ] Logout → `clearAuthCookies` + DB থেকে session মুছে ফেলা
 - [ ] Change password → নতুন token
-- [ ] `getMe` route
+- [x] `getMe` route → [note 16](./16-get-me-route.md)
 - [ ] Admin seed (প্রথম SUPER_ADMIN বানানো)
 
 ---

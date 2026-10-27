@@ -479,12 +479,12 @@ router.use("/doctors", DoctorRoutes);
 
 ## 🔜 পরে যা যোগ হবে
 
-- [ ] `getDoctorById` — `GET /api/v1/doctors/:id`
-- [ ] `updateDoctor` — `PATCH /api/v1/doctors/:id` (`IUpdateDoctorPayload`)
-- [ ] `deleteDoctor` (soft delete: `isDeleted: true`, `deletedAt`) — `DELETE /api/v1/doctors/:id`
-- [ ] Admin / Super Admin create (user module-এ)
-- [ ] Request validation (Zod)
-- [ ] Auth guard — শুধু ADMIN / SUPER_ADMIN doctor create করতে পারবে
+- [x] `getDoctorById` — `GET /api/v1/doctors/:id` → [note 15](./15-hw-doctor-crud.md)
+- [x] `updateDoctor` — `PATCH /api/v1/doctors/:id` (`IUpdateDoctorPayload`) → [note 15](./15-hw-doctor-crud.md)
+- [x] `deleteDoctor` (soft delete: `isDeleted: true`, `deletedAt`) — `DELETE /api/v1/doctors/:id` → [note 15](./15-hw-doctor-crud.md)
+- [x] Admin / Super Admin create (user module-এ) → [note 14](./14-hw-admin-crud.md)
+- [x] Request validation (Zod) → [note 11](./11-zod-validation.md)
+- [x] Auth guard — শুধু ADMIN / SUPER_ADMIN doctor create করতে পারবে → [note 13](./13-jwt-token-cookie-and-check-auth.md)
 
 ---
 
@@ -499,7 +499,7 @@ router.use("/doctors", DoctorRoutes);
    console.error("Transaction error : ", error);
    ```
 
-2. **`getAllDoctors`-এ deleted doctor বাদ দাও** — soft delete চালু হলে deleted doctor-ও list-এ চলে আসবে।
+2. ✅ (Done → [note 15](./15-hw-doctor-crud.md)) **`getAllDoctors`-এ deleted doctor বাদ দাও** — soft delete চালু হলে deleted doctor-ও list-এ চলে আসবে।
    ```ts
    const doctors = await prisma.doctor.findMany({
    	where: { isDeleted: false },

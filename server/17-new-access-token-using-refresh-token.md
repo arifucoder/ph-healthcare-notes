@@ -217,7 +217,7 @@ Send করার পর response-এর **Cookies** tab-এ ৩টা cookie �
 ## 🔜 পরে যা যোগ হবে
 
 - [ ] Logout → `clearAuthCookies` + DB থেকে session মুছে ফেলা
-- [ ] Change password → নতুন token
+- [x] Change password → নতুন token → [note 18](./18-change-password.md)
 
 ---
 

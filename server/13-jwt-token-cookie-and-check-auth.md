@@ -805,9 +805,9 @@ router.get("/me", checkAuth(), UserController.getMe); // যেকোনো logg
 
 ## 🔜 পরে যা যোগ হবে
 
-- [x] Refresh token route → access token expire হলে নতুন access token → [note 17](./17-refresh-token-new-access-token.md)
+- [x] Refresh token route → access token expire হলে নতুন access token → [note 17](./17-new-access-token-using-refresh-token.md)
 - [ ] Logout → `clearAuthCookies` + DB থেকে session মুছে ফেলা
-- [ ] Change password → নতুন token
+- [x] Change password → নতুন token → [note 18](./18-change-password.md)
 - [x] `getMe` route → [note 16](./16-get-me-route.md)
 - [ ] Admin seed (প্রথম SUPER_ADMIN বানানো)
 
@@ -819,7 +819,7 @@ router.get("/me", checkAuth(), UserController.getMe); // যেকোনো logg
 
 ### 🔴 গুরুত্বপূর্ণ
 
-1. **ভুল password দিলে সম্ভবত 500 আসবে** — `signInEmail` ভুল password-এ Better Auth-এর `APIError` throw করে। এটা `AppError` না, তাই global error handler (note 12) এটাকে সাধারণ `Error` ধরে **500** দেয়, আর production-এ message হয় "Something went wrong"। একই জিনিস register-এ duplicate email-এ। (test করা হয়নি, Postman-এ ভুল password দিয়ে দেখে নাও।) Fix — `globalErrorHandler`-এ `APIError` আলাদা করে ধরো:
+1. ✅ (Done → [note 18](./18-change-password.md)) **ভুল password দিলে সম্ভবত 500 আসবে** — `signInEmail` ভুল password-এ Better Auth-এর `APIError` throw করে। এটা `AppError` না, তাই global error handler (note 12) এটাকে সাধারণ `Error` ধরে **500** দেয়, আর production-এ message হয় "Something went wrong"। একই জিনিস register-এ duplicate email-এ। (test করা হয়নি, Postman-এ ভুল password দিয়ে দেখে নাও।) Fix — `globalErrorHandler`-এ `APIError` আলাদা করে ধরো:
    ```ts
    import { APIError } from "better-auth/api";
 

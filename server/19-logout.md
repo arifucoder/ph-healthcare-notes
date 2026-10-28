@@ -1,4 +1,4 @@
-# 19 - Logout
+# 19 - Logout (+ Logout from all devices)
 
 ```
 POST /auth/logout → checkAuth → cookie থেকে session token → "Bearer <token>"
@@ -130,13 +130,109 @@ Response:
 
 ---
 
+## Logout from all devices
+
+```
+POST /auth/logout-all → checkAuth() → cookie থেকে session token → "Bearer <token>"
+→ Better Auth revokeSessions (এই user-এর সব session DB থেকে মুছে) → এই browser-এর ৩টা cookie clear
+```
+
+### ধাপ ১: `auth.service.ts`
+
+```ts
+const logoutFromAllDevices = async (sessionToken: string) => {
+	if (!sessionToken) {
+		throw new AppError(httpStatus.UNAUTHORIZED, "Session token is missing");
+	}
+
+	const headers = new Headers({
+		Authorization: `Bearer ${sessionToken}`,
+	});
+
+	// এই user-এর সব session DB থেকে মুছে দেয়, return করে { status: true }
+	const result = await auth.api.revokeSessions({ headers });
+
+	return result;
+};
+```
+
+> ✏️ `AuthService` object-এ `logoutFromAllDevices` export করতে হবে — এটা নোটে ছিল না।
+
+### ধাপ ২: `auth.controller.ts`
+
+```ts
+const logoutFromAllDevices = catchAsync(async (req: Request, res: Response) => {
+	const sessionToken = CookieUtils.getCookie(req, "better-auth.session_token");
+
+	if (!sessionToken) {
+		throw new AppError(httpStatus.UNAUTHORIZED, "Session token is missing");
+	}
+
+	const result = await AuthService.logoutFromAllDevices(sessionToken);
+
+	// শুধু এই browser-এর cookie মোছা হয়; অন্য device-গুলোকে checkAuth নিজেই আটকে দেবে
+	tokenUtils.clearAuthCookies(res);
+
+	sendResponse(res, {
+		httpStatusCode: httpStatus.OK,
+		success: true,
+		message: "Logged out from all devices successfully",
+		data: result,
+	});
+});
+```
+
+> ✏️ `AuthController` object-এ `logoutFromAllDevices` যোগ করতে হবে — এটা নোটে ছিল না।
+
+### ধাপ ৩: `auth.route.ts`
+
+```ts
+router.post("/logout-all", checkAuth(), AuthController.logoutFromAllDevices);
+```
+
+- `checkAuth()`-এ কোনো role দেওয়া হয়নি। `authRoles.length === 0` হলে role check skip হয়, তাই logged in যেকোনো user এটা ব্যবহার করতে পারবে।
+
+### অন্য device-গুলো কীভাবে বের হয়ে যায়?
+
+ওদের browser-এ cookie এখনো থাকে, কিন্তু DB-তে session নেই:
+
+| অন্য device যা করে | ফল |
+|---|---|
+| কোনো protected route hit | `checkAuth` session খুঁজে পায় না → `401` |
+| `refreshToken` দিয়ে নতুন token চায় | `getNewToken`-ও DB-তে session খোঁজে → `401` |
+
+### `logout` বনাম `logout-all`
+
+| | `/logout` | `/logout-all` |
+|---|---|---|
+| Better Auth API | `signOut` | `revokeSessions` |
+| DB থেকে মোছে | শুধু এই session | এই user-এর সব session |
+| Response `data` | `{ success: true }` | `{ status: true }` |
+| Cookie clear | এই browser | এই browser (বাকিগুলো `checkAuth`-এ আটকায়) |
+
+### Test (Postman)
+
+| | |
+|---|---|
+| Method | `POST` |
+| URL | `http://localhost:5000/api/v1/auth/logout-all` |
+| Body | নেই |
+| Cookie | login-এর ৩টা cookie |
+
+চেক করো:
+1. একই user দিয়ে ২ বার login করো (যেমন Postman আর browser থেকে)। `session` table-এ ২টা row থাকবে।
+2. একটা থেকে `/logout-all` hit করো → ওই user-এর সব row মুছে যাবে।
+3. অন্যটা থেকে `/auth/me` hit করো → `401`।
+
+---
+
 ## 🤖 Claude Recommendation
 
 > এগুলো শুধু suggestion — উপরের code বদলানো হয়নি।
 
 ### 🔴 গুরুত্বপূর্ণ
 
-1. **Access token expire হলে logout আটকে যায়।** `checkAuth` আগে JWT verify করে। `accessToken` (1d) expire কিন্তু session (7d) বেঁচে আছে → logout `401` দেয়, cookie clear হয় না, DB-তে session থেকে যায়। আর cookie `httpOnly` হওয়ায় frontend নিজে মুছতেও পারে না। সমাধান: logout route থেকে `checkAuth` সরানো, আর token না থাকলেও cookie clear করা।
+1. **Access token expire হলে logout আটকে যায়।** (এটা শুধু `/logout`-এর জন্য। `/logout-all`-এ `checkAuth` রাখাই ঠিক — সব session মুছে ফেলার মতো বড় কাজের আগে user যাচাই হওয়া দরকার। token expire হলে আগে refresh করে নেবে।) `checkAuth` আগে JWT verify করে। `accessToken` (1d) expire কিন্তু session (7d) বেঁচে আছে → logout `401` দেয়, cookie clear হয় না, DB-তে session থেকে যায়। আর cookie `httpOnly` হওয়ায় frontend নিজে মুছতেও পারে না। সমাধান: logout route থেকে `checkAuth` সরানো, আর token না থাকলেও cookie clear করা।
 
 	```ts
 	// auth.route.ts
@@ -164,7 +260,7 @@ Response:
 
 ### 🟡 ভালো practice
 
-2. **একই check দুইবার।** `!sessionToken` check controller আর service দুই জায়গাতেই আছে। ক্ষতি নেই, কিন্তু একটা রাখলেই যথেষ্ট (controller-এ রাখা ভালো, কারণ cookie পড়া controller-এর কাজ)।
+2. **একই check দুইবার।** (`logoutFromAllDevices`-এও একই কথা।) `!sessionToken` check controller আর service দুই জায়গাতেই আছে। ক্ষতি নেই, কিন্তু একটা রাখলেই যথেষ্ট (controller-এ রাখা ভালো, কারণ cookie পড়া controller-এর কাজ)।
 
 ### 🔵 পরে কাজে লাগবে / জেনে রাখো
 
@@ -179,4 +275,4 @@ Response:
 ## 🔜 পরে যা যোগ হবে
 
 - [ ] Frontend (Next.js) থেকে logout button → `credentials: "include"` দিয়ে call
-- [ ] সব device থেকে logout (`auth.api.revokeSessions`)
+- [x] সব device থেকে logout (`auth.api.revokeSessions`) ✅ (Done)

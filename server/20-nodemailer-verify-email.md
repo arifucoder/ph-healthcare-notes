@@ -331,6 +331,24 @@ const verifyEmail = catchAsync(async (req: Request, res: Response) => {
 // JWT বানাতে শুধু এই field-গুলো লাগে, তাই Prisma user-ও পাঠানো যাবে
 type TTokenUser = Pick<TAuthUser, "id" | "role" | "name" | "email" | "status" | "isDeleted" | "emailVerified">;
 
+// ✅ parameter type TAuthUser → TTokenUser (Better Auth user আর Prisma user দুটোই চলবে)
+const generateAuthTokens = (user: TTokenUser) => {
+	const jwtPayload = {
+		userId: user.id,
+		role: user.role,
+		name: user.name,
+		email: user.email,
+		status: user.status,
+		isDeleted: user.isDeleted,
+		emailVerified: user.emailVerified,
+	};
+
+	return {
+		accessToken: tokenUtils.getAccessToken(jwtPayload),
+		refreshToken: tokenUtils.getRefreshToken(jwtPayload),
+	};
+};
+
 const verifyEmail = async (payload: IVerifyEmailPayload) => {
 	const { email, otp } = payload;
 
@@ -364,8 +382,75 @@ const verifyEmail = async (payload: IVerifyEmailPayload) => {
 ```
 
 > ✏️ `IVerifyEmailPayload` import আর `AuthService` object-এ `verifyEmail` export লাগবে — এটা নোটে ছিল না।
+> ✏️ `generateAuthTokens`-এর parameter `TAuthUser` থেকে `TTokenUser` করা হয়েছে — নাহলে Prisma user (`verifyEmail`-এ) পাঠালে type error আসতে পারে, আর `TTokenUser` unused পড়ে থাকত।
 
 - Service দুই ধরনের object return করে। Controller-এ `result.token !== null` check করলে TypeScript নিজেই বুঝে যায় `accessToken`/`refreshToken` আছে (type narrowing)।
+
+### ধাপ ৭: Register থেকে token/cookie বাদ
+
+> ✏️ এই ধাপটা নোটে ছিল না — Claude Recommendation থেকে যোগ হয়েছে।
+
+`requireEmailVerification: true` হওয়ায় register-এর সময় `signUpEmail` আর session দেয় না (`token: null`)। Verify-এর আগে user login থাকবে না, তাই register এখন শুধু user + patient বানায় আর OTP পাঠায়। Login cookie আসবে `verify-email` থেকে।
+
+`auth.service.ts` → `registerPatient`
+
+```ts
+const registerPatient = async (payload: IRegisterPatientPayload) => {
+	const { name, email, password } = payload;
+
+	// sendOnSignUp: true → এখানেই OTP mail চলে যায়
+	const data = await auth.api.signUpEmail({
+		body: { name, email, password },
+	});
+
+	// শুধু patient তৈরি fail করলে user মুছে ফেলা হবে
+	let patient: Awaited<ReturnType<typeof prisma.patient.create>>;
+	try {
+		patient = await prisma.patient.create({
+			data: {
+				userId: data.user.id,
+				name,
+				email,
+			},
+		});
+	} catch (error) {
+		console.error("Failed to create patient:", error);
+		await prisma.user.delete({ where: { id: data.user.id } });
+		throw error;
+	}
+
+	// ✅ আর accessToken/refreshToken বানানো হয় না — verify-email-এর পরে বানানো হবে
+	return {
+		user: data.user,
+		patient,
+	};
+};
+```
+
+`auth.controller.ts` → `registerPatient`
+
+```ts
+const registerPatient = catchAsync(async (req: Request, res: Response) => {
+	const payload = req.body;
+
+	const result = await AuthService.registerPatient(payload);
+
+	// ✅ কোনো cookie set হয় না
+	sendResponse(res, {
+		httpStatusCode: httpStatus.CREATED,
+		success: true,
+		message: "Registration successful. Please check your email for the OTP",
+		data: result,
+	});
+});
+```
+
+| | আগে | এখন |
+|---|---|---|
+| Register response | `token`, `accessToken`, `refreshToken`, cookie | শুধু `user` + `patient`, cookie নেই |
+| Login cookie কখন | register-এ | `verify-email`-এ (`autoSignInAfterVerification`) |
+
+> [নোট ০৭](./07-patient-registration-with-transaction.md)-এর register code এখন এই নতুন version দিয়ে বদলে গেছে।
 
 ---
 
@@ -383,7 +468,7 @@ const verifyEmail = async (payload: IVerifyEmailPayload) => {
 }
 ```
 
-→ Inbox-এ "Verify your email" mail আসবে (না পেলে Spam দেখো)। OTP ২ মিনিট valid।
+→ `201`, response-এ শুধু `user` + `patient`, **কোনো cookie নেই**। Inbox-এ "Verify your email" mail আসবে (না পেলে Spam দেখো)। OTP ২ মিনিট valid।
 
 **২. Verify email**
 
@@ -413,25 +498,10 @@ const verifyEmail = async (payload: IVerifyEmailPayload) => {
 
 > এগুলো শুধু suggestion — উপরের code বদলানো হয়নি।
 
-### 🔴 গুরুত্বপূর্ণ
+### ✅ (Done)
 
-1. **`generateAuthTokens`-এর parameter type এখনো `TAuthUser`।** `TTokenUser` বানানো হয়েছে, কিন্তু function-এ ব্যবহার হয়নি। তাই `generateAuthTokens(user)`-এ Prisma user পাঠালে `pnpm typecheck`-এ error আসতে পারে (Better Auth আর Prisma-র user type পুরো এক না)। `tsx` type-check করে না, তাই dev-এ চোখে পড়বে না (untested)। আর unused type হিসেবেও থাকবে।
-
-	```ts
-	const generateAuthTokens = (user: TTokenUser) => {
-		// ...একই
-	};
-	```
-
-2. **Register এখন unverified user-কে token দেয়।** `requireEmailVerification: true` হওয়ায় `signUpEmail`-এর `token` এখন `null`, কিন্তু `registerPatient` তবুও `accessToken` + `refreshToken` বানিয়ে cookie set করে। `checkAuth` session চায় বলে ঢুকতে পারবে না, তবু verify-এর আগে token দেওয়ার মানে নেই। Register-এ token/cookie বাদ দাও, শুধু "OTP পাঠানো হয়েছে" জানাও।
-
-	```ts
-	// auth.service.ts → registerPatient-এর শেষে
-	return { user: data.user, patient };
-
-	// auth.controller.ts → registerPatient-এ cookie set করার লাইনগুলো বাদ
-	message: "Registration successful. Please check your email for the OTP",
-	```
+1. ✅ **`generateAuthTokens`-এর parameter `TTokenUser` করা** — Part 2 ধাপ ৬-এ আপডেট করা হয়েছে।
+2. ✅ **Register থেকে token/cookie বাদ** — Part 2 ধাপ ৭-এ যোগ করা হয়েছে।
 
 ### 🟡 ভালো practice
 
@@ -463,6 +533,6 @@ const verifyEmail = async (payload: IVerifyEmailPayload) => {
 
 ## 🔜 পরে যা যোগ হবে
 
-- [ ] Forget password / reset password (`forget-password` type আগেই handle করা আছে)
+- [x] Forget password / reset password ✅ (Done → [নোট ২১](./21-forget-and-reset-password.md))
 - [ ] Resend OTP route
 - [ ] সুন্দর HTML email template (logo, button)

@@ -192,7 +192,8 @@ Authorization: Bearer abc123xyz
 
 > **মনে রাখো:** `prisma` দিয়ে নিজে করলে Bearer লাগে না। `auth.api.*` দিয়ে এমন কাজ, যেখানে আগের session লাগে → Bearer লাগে।
 
----
+------
+------
 
 ## ⚡ getMe-তে Bearer লাগেনি, changePassword-এ লাগল কেন?
 
@@ -217,7 +218,8 @@ Authorization: Bearer abc123xyz
 
 > **💡 এক লাইনে:** data পড়লে → `prisma` (Bearer ❌) · password / session বদলালে → `auth.api.*` (Bearer ✅)
 
----
+---------
+---------
 
 ## ধাপ ৭: Test (Postman)
 

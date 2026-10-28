@@ -194,6 +194,31 @@ Authorization: Bearer abc123xyz
 
 ---
 
+## ⚡ getMe-তে Bearer লাগেনি, changePassword-এ লাগল কেন?
+
+> ### 🔑 Teacher-এর কথা (✅ ঠিক)
+> **`getMe` আমরা `prisma` থেকে করেছি, তাই Bearer লাগেনি।**
+> **`changePassword` আমরা Better Auth-এর session থেকে করছি, তাই Bearer লাগছে।**
+
+| Route | User কীভাবে খোঁজা হয় | Better Auth-কে জিজ্ঞেস করা হয়? | Bearer |
+|---|---|---|---|
+| **`getMe`** (note 16) | `checkAuth` → `prisma.session` → `req.user`, তারপর `prisma.user.findUnique` | ❌ না | ❌ **লাগে না** |
+| **`changePassword`** | `auth.api.getSession` + `auth.api.changePassword` | ✅ হ্যাঁ — "session-টা কার?" | ✅ **লাগে** |
+
+### ✅ দুটো পথই সঠিক — কোনটা কখন?
+
+| পথ | কখন ব্যবহার করবে | উদাহরণ |
+|---|---|---|
+| **`prisma` দিয়ে নিজে** | শুধু **data পড়া / সাধারণ update** | `getMe`, profile দেখা |
+| **`auth.api.*` + Bearer** | **password / session**-এর মতো Better Auth-এর নিজের কাজ | `changePassword`, `signOut` |
+
+- **`getMe`** চাইলে `auth.api.getSession({ headers })` + Bearer দিয়েও করা যেত। কিন্তু `checkAuth` থেকে `req.user` আগেই আছে, তাই **`prisma` সহজ আর দ্রুত**।
+- **`changePassword`** চাইলে `prisma` দিয়েও করা যায়, কিন্তু তখন সব নিজে করতে হবে: পুরনো password মিলানো (`verifyPassword`), নতুনটা Better Auth-এর format-এ hash করা (`hashPassword`), `account` table update, session মোছা। একটা ভুলেই user আর login করতে পারবে না। তাই **Better Auth + Bearer নিরাপদ আর সহজ**।
+
+> **💡 এক লাইনে:** data পড়লে → `prisma` (Bearer ❌) · password / session বদলালে → `auth.api.*` (Bearer ✅)
+
+---
+
 ## ধাপ ৭: Test (Postman)
 
 আগে `POST /api/v1/auth/login`, তারপর:

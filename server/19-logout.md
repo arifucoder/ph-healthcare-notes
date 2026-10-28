@@ -264,11 +264,7 @@ router.post("/logout-all", checkAuth(), AuthController.logoutFromAllDevices);
 
 ### 🔵 পরে কাজে লাগবে / জেনে রাখো
 
-3. **`sameSite: "none"` + dev-এ `secure: false`.** Chrome সাধারণত `SameSite=None` cookie-তে `Secure` না থাকলে reject করে। Postman-এ সমস্যা হয় না, কিন্তু Next.js frontend (browser) থেকে test করলে cookie set/clear নাও হতে পারে (untested)। তখন comment করা লাইনটা ফিরিয়ে আনো:
-
-	```ts
-	sameSite: isProduction ? "none" : "lax",
-	```
+3. ✅ (Done) **`sameSite: "none"` + dev-এ `secure: false`.** `token.ts`-এ এখন `sameSite: isProduction ? "none" : "lax"` — browser (Google login, Next.js) থেকেও cookie ঠিকমতো set/clear হবে। ([নোট ২২](./22-google-oauth.md)-এ Better Auth-এর cookie-তেও একই নিয়ম।)
 
 4. **Logout-এর পর access token।** JWT নিজে stateless, তাই logout-এর পরও expire হওয়া পর্যন্ত valid। তবে আমাদের `checkAuth` DB-তে session খোঁজে, session মুছে গেলে শুধু access token দিয়ে ঢোকা যাবে না — তাই এটা নিরাপদ।
 

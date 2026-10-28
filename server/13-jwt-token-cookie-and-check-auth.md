@@ -805,7 +805,7 @@ router.get("/me", checkAuth(), UserController.getMe); // যেকোনো logg
 
 ## 🔜 পরে যা যোগ হবে
 
-- [ ] Refresh token route → access token expire হলে নতুন access token
+- [x] Refresh token route → access token expire হলে নতুন access token → [note 17](./17-refresh-token-new-access-token.md)
 - [ ] Logout → `clearAuthCookies` + DB থেকে session মুছে ফেলা
 - [ ] Change password → নতুন token
 - [x] `getMe` route → [note 16](./16-get-me-route.md)

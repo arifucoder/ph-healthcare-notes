@@ -23,6 +23,7 @@ export interface IQueryConfig {
 	selectableFields?: readonly string[];
 	enumFields?: readonly string[]; // value auto UPPERCASE হয়
 	caseInsensitiveFields?: readonly string[]; // exact match, কিন্তু ছোট/বড় হাতের অক্ষর ignore
+	tieBreakerFields?: readonly string[]; // default ["id"] — composite key model-এ বদলাও
 	defaultSortBy?: string;
 	defaultLimit?: number;
 	maxLimit?: number;
@@ -50,6 +51,7 @@ export interface PrismaModelDelegate {
 ```
 
 - `readonly string[]` → constant file-এর `as const` array সরাসরি পাঠানো যায়।
+- `tieBreakerFields` → পরে যোগ হয়েছে ([নোট ২৬](./26-doctor-schedule.md)), নিচে `sort()`-এ ব্যাখ্যা।
 - `PrismaModelDelegate` → যেকোনো model (`prisma.doctor`, `prisma.patient`) একই class-এ চলে। এখানে `any` লাগে, তাই **oxlint**-এর comment (এটা কাজ করে, eslint-এর মতো অকেজো না)।
 
 ---
@@ -154,15 +156,17 @@ export class QueryBuilder<T, TWhere = AnyObject, TInclude = AnyObject> {
 
 	// ?sortBy=appointmentFee&sortOrder=asc
 	sort(): this {
-		const { sortableFields = [], defaultSortBy = "createdAt" } = this.config;
+		const { sortableFields = [], defaultSortBy = "createdAt", tieBreakerFields = ["id"] } = this.config;
 		const requested = this.getString("sortBy");
 
 		const sortBy = requested && sortableFields.includes(requested) ? requested : defaultSortBy;
 		const sortOrder = this.getString("sortOrder")?.toLowerCase() === "asc" ? "asc" : "desc";
 
-		// id tie-breaker: একই value-ওয়ালা row page বদলালে duplicate বা miss হবে না
+		// tie-breaker: একই value-ওয়ালা row page বদলালে duplicate বা miss হবে না
 		this.orderBy = [toNested(sortBy, sortOrder, false)];
-		if (sortBy !== "id") this.orderBy.push({ id: sortOrder });
+		for (const field of tieBreakerFields) {
+			if (field !== sortBy) this.orderBy.push({ [field]: sortOrder });
+		}
 
 		return this;
 	}
@@ -317,7 +321,7 @@ export class QueryBuilder<T, TWhere = AnyObject, TInclude = AnyObject> {
 | `where()` | — (code থেকে) | `{ isDeleted: false }` |
 | `search()` | `?searchTerm=john` | `OR: [{ name: { contains, mode: "insensitive" } }, ...]` |
 | `filter()` | `?gender=male`, `?appointmentFee[gte]=500` | whitelist field গুলো → `AND`-এ |
-| `sort()` | `?sortBy=..&sortOrder=asc` | `orderBy: [{ field }, { id }]` (tie-breaker পরে config থেকে — [নোট ২৬](./26-doctor-schedule.md)) |
+| `sort()` | `?sortBy=..&sortOrder=asc` | `orderBy: [{ field }, ...tieBreakerFields]` (default `{ id }`) |
 | `paginate()` | `?page=2&limit=5` | `skip`, `take` |
 | `fields()` | `?fields=name,email` | `select` |
 | `include()` | — (code থেকে) | সবসময় আসা relation |
@@ -334,6 +338,28 @@ Helper গুলো:
 | `parseScalar` | `"true"` → `true`, `"500"` → `500` |
 | `parseOperators` | whitelist operator রাখে, `hack` বাদ দেয় |
 | `toUpperDeep` | enum value UPPERCASE (array/object-এর ভেতরেও) |
+
+### `sort()`-এর tie-breaker (update)
+
+> ✏️ `sort()` পরে update হয়েছে ([নোট ২৬](./26-doctor-schedule.md)) — উপরের code এখনকার version।
+
+আগে `sort()` সবসময় `{ id: sortOrder }` যোগ করত:
+
+```ts
+// আগের version
+if (sortBy !== "id") this.orderBy.push({ id: sortOrder });
+```
+
+কিন্তু `DoctorSchedules`-এর মতো composite key model-এ `id` column নেই → Prisma error। এখন tie-breaker config থেকে আসে:
+
+| Model | `tieBreakerFields` | `orderBy` |
+|---|---|---|
+| Doctor, Schedule, Patient... | দেওয়া নেই → default `["id"]` | `[{ sortBy }, { id }]` |
+| DoctorSchedules | `["doctorId", "scheduleId"]` | `[{ schedule: { startDateTime } }, { doctorId }, { scheduleId }]` |
+
+- **Tie-breaker কেন?** অনেক row-এর `createdAt` (বা `appointmentFee`) একই হলে DB প্রতিবার একই ক্রম দেবে এমন নিশ্চয়তা নেই — তখন page 1 আর page 2-তে একই row দুবার আসতে বা কোনোটা বাদ পড়তে পারে। Unique field দিয়ে শেষে আরেকবার sort করলে ক্রম সবসময় একই।
+- `field !== sortBy` → `?sortBy=id` দিলে `id` দুবার যোগ হয় না।
+- আগের module-গুলোতে কিছু বদলাতে হয়নি — default `["id"]`।
 
 ---
 
@@ -671,7 +697,7 @@ URL → req.query → QueryBuilder
    .where()          → fixed condition (isDeleted: false)
    .search()         → OR [ field contains term ]
    .filter()         → whitelist-এ থাকা field গুলো (enum → UPPERCASE, caseInsensitive → mode)
-   .sort()           → orderBy (+ id tie-breaker)
+   .sort()           → orderBy (+ tie-breaker, default id)
    .paginate()       → skip, take
    .fields()         → select
    .include()        → fixed relation
@@ -726,6 +752,7 @@ Allowed operators: `equals, not, lt, lte, gt, gte, in, notIn, contains, startsWi
 - ⚠️ `sortableFields`-এ শুধু নিজের field বা to-one path রাখো
 - ⚠️ সংখ্যা-ওয়ালা String column (`contactNumber`, `registrationNumber`) `filterableFields`-এ দিও না, কারণ value auto number হয়ে যায়
 - ⚠️ `enumFields` আর `caseInsensitiveFields`-এর field `filterableFields`-এও থাকতে হবে, নাহলে কাজ করবে না
+- ⚠️ Model-এ `id` না থাকলে (composite key) `tieBreakerFields` দিতেই হবে, যেমন `["doctorId", "scheduleId"]` — নাহলে sort-এ Prisma error
 
 ## কোথায় কী যোগ করতে হয়
 
@@ -807,6 +834,7 @@ Route-এ কিছু বদলাতে হয় না।
 ## মনে রাখার পয়েন্ট
 
 - `include` = সবসময় আসে, `dynamicInclude` = client চাইলে আসে
+- `id` নেই এমন model → `tieBreakerFields` দাও
 - `fields` দিলে include বাদ পড়ে (Prisma `select` + `include` একসাথে নেয় না)
 - `enumFields` → `male` লিখলেও `MALE`; `caseInsensitiveFields` → `cardiology` == `Cardiology`
 - `[gte]` কাজ না করলে → `app.ts`-এ query parser চেক করো

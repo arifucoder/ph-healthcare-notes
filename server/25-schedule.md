@@ -751,15 +751,9 @@ DOCTOR দিয়ে login করে:
 
 > এগুলো শুধু suggestion — উপরের code বদলানো হয়নি।
 
-### 🔴 গুরুত্বপূর্ণ
+### ✅ (Done)
 
-1. **Project-এ route-এর নাম মেলে না → server চালুই হবে না।** তোমার `src/app/routes/index.ts`-এ লেখা `import { scheduleRoutes } ...` (ছোট `s`), কিন্তু `schedule.route.ts` export করে `ScheduleRoutes` (বড় `S`)। ESM-এ এটা চালু হওয়ার সময়ই `SyntaxError: ... does not provide an export named 'scheduleRoutes'` দেবে। (code পড়ে নিশ্চিত — এখান থেকে `pnpm typecheck` চালাতে পারিনি, TypeScript-এর binary এই machine-এ চলে না।)
-
-	```ts
-	import { ScheduleRoutes } from "../module/schedule/schedule.route";
-
-	router.use("/schedules", ScheduleRoutes);
-	```
+1. ✅ **Project-এ route-এর নাম মেলে না** (`scheduleRoutes` বনাম `ScheduleRoutes`) — project-এর `routes/index.ts`-এ এখন `ScheduleRoutes`।
 
 ### 🟡 ভালো practice
 

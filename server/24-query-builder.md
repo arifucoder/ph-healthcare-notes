@@ -317,7 +317,7 @@ export class QueryBuilder<T, TWhere = AnyObject, TInclude = AnyObject> {
 | `where()` | — (code থেকে) | `{ isDeleted: false }` |
 | `search()` | `?searchTerm=john` | `OR: [{ name: { contains, mode: "insensitive" } }, ...]` |
 | `filter()` | `?gender=male`, `?appointmentFee[gte]=500` | whitelist field গুলো → `AND`-এ |
-| `sort()` | `?sortBy=..&sortOrder=asc` | `orderBy: [{ field }, { id }]` |
+| `sort()` | `?sortBy=..&sortOrder=asc` | `orderBy: [{ field }, { id }]` (tie-breaker পরে config থেকে — [নোট ২৬](./26-doctor-schedule.md)) |
 | `paginate()` | `?page=2&limit=5` | `skip`, `take` |
 | `fields()` | `?fields=name,email` | `select` |
 | `include()` | — (code থেকে) | সবসময় আসা relation |

@@ -318,6 +318,8 @@ export const generatePrescriptionPdf = (data: IPrescriptionPdfData): Promise<Buf
 };
 ```
 
+> Prescription সবসময় English-এ লেখা হবে — তাই built-in `Helvetica` font-ই যথেষ্ট, আলাদা font লাগবে না।
+
 > PDF disk-এ save হয় না — পুরোটা memory-তে `Buffer` হিসেবে থাকে, তারপর সরাসরি Cloudinary-তে আর email attachment-এ যায়।
 
 ---
@@ -919,16 +921,9 @@ Create body (doctor হিসেবে login করে):
 
 1. **`routes/index.ts`-এ mount করো** (ধাপ ১০) — এখন mount করা নেই, তাই সব endpoint `404` দেবে।
 
-2. **বাংলা instructions PDF-এ ভাঙা দেখাবে** — built-in `Helvetica` font শুধু Latin অক্ষর জানে। Doctor বাংলায় লিখলে PDF-এ অদ্ভুত চিহ্ন আসবে। একটা Unicode font (যেমন Noto Sans Bengali `.ttf`) register করে instructions-এ ব্যবহার করো:
-   ```ts
-   doc.registerFont("Bangla", "src/app/assets/fonts/NotoSansBengali-Regular.ttf");
-   doc.font("Bangla").fontSize(11).text(data.instructions, { width: contentWidth, lineGap: 4 });
-   ```
-   (pdfkit-এ বাংলা যুক্তাক্ষর পুরোপুরি ঠিক নাও আসতে পারে — test করে দেখতে হবে।) Build-এর পরে font file `dist`-এ যায় কিনা সেটাও খেয়াল রাখো।
-
 ### 🟡 ভালো practice
 
-3. **কোন appointment status-এ prescription দেওয়া যাবে** — এখন শুধু `CANCELED` আটকানো হচ্ছে, মানে ভবিষ্যতের `SCHEDULED` appointment-এও prescription দেওয়া যায়। চাইলে শুধু `INPROGRESS`/`COMPLETED`-এ allow করো:
+2. **কোন appointment status-এ prescription দেওয়া যাবে** — এখন শুধু `CANCELED` আটকানো হচ্ছে, মানে ভবিষ্যতের `SCHEDULED` appointment-এও prescription দেওয়া যায়। চাইলে শুধু `INPROGRESS`/`COMPLETED`-এ allow করো:
    ```ts
    const allowed: AppointmentStatus[] = [AppointmentStatus.INPROGRESS, AppointmentStatus.COMPLETED];
    if (!allowed.includes(appointment.status)) {
@@ -937,17 +932,17 @@ Create body (doctor হিসেবে login করে):
    ```
    (তোমার enum-এর exact নাম মিলিয়ে নিও।)
 
-4. **`getMyPrescriptions`-এ pagination নেই** — অনেক prescription হলে সব একবারে আসবে। Admin-এর মতো `QueryBuilder` দিয়ে `where`-টা base filter হিসেবে দিতে পারো, অথবা অন্তত `take`/`skip` যোগ করো।
+3. **`getMyPrescriptions`-এ pagination নেই** — অনেক prescription হলে সব একবারে আসবে। Admin-এর মতো `QueryBuilder` দিয়ে `where`-টা base filter হিসেবে দিতে পারো, অথবা অন্তত `take`/`skip` যোগ করো।
 
-5. **Follow-up date-এর বাংলাদেশ সময়** — `"2026-11-20"` UTC midnight হিসেবে parse হয় (বাংলাদেশে সকাল ৬টা)। আজকের তারিখ পাঠালে কখনো pass, কখনো fail করতে পারে। দরকার হলে "কমপক্ষে আগামীকাল" rule দাও।
+4. **Follow-up date-এর বাংলাদেশ সময়** — `"2026-11-20"` UTC midnight হিসেবে parse হয় (বাংলাদেশে সকাল ৬টা)। আজকের তারিখ পাঠালে কখনো pass, কখনো fail করতে পারে। দরকার হলে "কমপক্ষে আগামীকাল" rule দাও।
 
 ### 🔵 পরে কাজে লাগবে / জেনে রাখো
 
-6. **Cloudinary-তে PDF delivery** — free account-এ default ভাবে PDF/ZIP delivery বন্ধ থাকে, তখন `pdfUrl` খুললে `401` আসে। Cloudinary Settings → Security → "Allow delivery of PDF and ZIP files" চালু করতে হয়।
+5. **Cloudinary-তে PDF delivery** — free account-এ default ভাবে PDF/ZIP delivery বন্ধ থাকে, তখন `pdfUrl` খুললে `401` আসে। Cloudinary Settings → Security → "Allow delivery of PDF and ZIP files" চালু করতে হয়।
 
-7. **Email শুধু একটা process-এর ভেতরে background-এ** — server restart হলে পাঠানো না হওয়া email হারিয়ে যাবে। Production-এ এজন্য queue (যেমন BullMQ) ব্যবহার করা হয়।
+6. **Email শুধু একটা process-এর ভেতরে background-এ** — server restart হলে পাঠানো না হওয়া email হারিয়ে যাবে। Production-এ এজন্য queue (যেমন BullMQ) ব্যবহার করা হয়।
 
-8. **Update-এ একই সাথে দুই request** — দুটো PATCH একসাথে এলে একটার নতুন PDF Cloudinary-তে অনাথ থেকে যেতে পারে। শেখার project-এ সমস্যা না, শুধু জেনে রাখো।
+7. **Update-এ একই সাথে দুই request** — দুটো PATCH একসাথে এলে একটার নতুন PDF Cloudinary-তে অনাথ থেকে যেতে পারে। শেখার project-এ সমস্যা না, শুধু জেনে রাখো।
 
 ---
 
@@ -955,4 +950,3 @@ Create body (doctor হিসেবে login করে):
 
 - [ ] Frontend-এ patient-এর "My Prescriptions" page + PDF download
 - [ ] Doctor dashboard থেকে prescription লেখা/edit করা
-- [ ] (ঐচ্ছিক) বাংলা font সহ PDF

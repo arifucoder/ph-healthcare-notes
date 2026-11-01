@@ -194,6 +194,8 @@ export const prescriptionPdfInclude = {
 
 ## ধাপ ৬: PDF বানানো — `prescription.utils.ts`
 
+> 🔄 পরে এই PDF code shared helper `utils/pdf.ts`-এ সরানো হয়েছে — নতুন version দেখো [নোট ৩৩](./33-payment-invoice-pdf.md)-এ।
+
 ```ts
 import { envVars } from "@/app/config/env";
 import PDFDocument from "pdfkit";

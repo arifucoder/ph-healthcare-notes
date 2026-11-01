@@ -4,7 +4,7 @@
 POST /specialties (form-data: file + data) → checkAuth → multer.single("file")
 → cloudinaryStorage._handleFile → file stream সরাসরি Cloudinary-তে → req.file.path = secure_url
 → validateRequest (data JSON string → object → Zod) → controller (icon: req.file?.path) → service → DB
-(কোথাও error হলে → globalErrorHandler → req.file থাকলে Cloudinary থেকে মুছে দেয়)
+(কোথাও error হলে → globalErrorHandler → deleteUploadedFiles → upload হওয়া সব file Cloudinary থেকে মোছে)
 ```
 
 | Package | কাজ |
@@ -283,19 +283,18 @@ import { MAX_FILE_SIZE_MB } from "../config/multer.config";
 Route-এ `multer` আগে চলে, তাই file **আগেই** Cloudinary-তে চলে যায়। এরপর Zod, DB বা অন্য যেকোনো জায়গায় error হলে ছবিটা অকারণে পড়ে থাকত। সব error শেষে `globalErrorHandler`-এ আসে, তাই এখানে একবার লিখলেই সব route-এর জন্য কাজ করবে।
 
 ```ts
-import { deleteFileFromCloudinary } from "../config/cloudinary.config";
+import { deleteUploadedFiles } from "../utils/deleteUploadedFiles";
 
 // ✅ async — file মোছা শেষ হওয়া পর্যন্ত অপেক্ষা করে
 export const globalErrorHandler = async (err: unknown, req: Request, res: Response, _next: NextFunction) => {
-	// error হলে এই request-এ upload হওয়া file মুছে দাও
-	// .catch → মুছতে fail করলেও আসল error-টাই user দেখবে
-	if (req.file?.path) {
-		await deleteFileFromCloudinary(req.file.path).catch(() => {});
-	}
+	// error হলে এই request-এ upload হওয়া file আর রাখার দরকার নেই
+	await deleteUploadedFiles(req);
 
 	// ...বাকি code একই (isDev, statusCode, ZodError, AppError, APIError, MulterError, Error...)
 };
 ```
+
+> ✏️ আগে এখানে সরাসরি `req.file?.path` দিয়ে `deleteFileFromCloudinary(...).catch(() => {})` ছিল — শুধু single file সামলাত। এখন নিচের (গ) helper দিয়ে single, array, fields তিনটাই।
 
 | কোথায় error | আগে | এখন |
 |---|---|---|
@@ -304,9 +303,136 @@ export const globalErrorHandler = async (err: unknown, req: Request, res: Respon
 | Multer নিজে (size, type) | `_removeFile` / upload-ই হয় না | একই |
 
 - Express 5 async error handler-ও ঠিকমতো চালায়।
-- `req.file` থাকে শুধু `.single()`-এ। পরে `.array()` / `.fields()` ব্যবহার করলে `req.files`-ও মুছতে হবে।
 
 > ✏️ এই অংশ নোটে ছিল না — Claude Recommendation থেকে যোগ হয়েছে (untested)।
+
+### গ) `src/app/utils/deleteUploadedFiles.ts` — সব ধরনের upload মোছা
+
+```ts
+import type { Request } from "express";
+import { deleteFileFromCloudinary } from "../config/cloudinary.config";
+
+// req.file (single) / req.files (array) / req.files ({ field: File[] }) — তিন রকমই সামলায়
+const collectUploadedFiles = (req: Request): Express.Multer.File[] => {
+	if (req.file) return [req.file];
+	if (Array.isArray(req.files)) return req.files;
+	if (req.files) return Object.values(req.files).flat();
+	return [];
+};
+
+// request fail করলে এই request-এ upload হওয়া file Cloudinary থেকে মুছে দেয়
+export const deleteUploadedFiles = async (req: Request): Promise<void> => {
+	const files = collectUploadedFiles(req);
+	if (files.length === 0) return;
+
+	// deleteFileFromCloudinary throw করতে পারে → allSettled, যাতে response আটকে না যায়
+	await Promise.allSettled(files.map((file) => deleteFileFromCloudinary(file.path)));
+};
+```
+
+**Multer কোন method-এ file কোথায় রাখে:**
+
+| Route-এ | File থাকে | Shape | `collectUploadedFiles` |
+|---|---|---|---|
+| `.single("file")` | `req.file` | একটা `File` | `[req.file]` |
+| `.array("files", 5)` | `req.files` | `File[]` | যেমন আছে |
+| `.fields([{ name: "photo" }, { name: "docs" }])` | `req.files` | `{ photo: File[], docs: File[] }` | `Object.values(...).flat()` → এক array |
+
+- সব ক্ষেত্রে শেষে একটা সাধারণ `File[]` — তাই মোছার code একটাই।
+- `file.path` → আমাদের `cloudinaryStorage` এখানে Cloudinary URL রাখে (ধাপ ৪), সেটাই `deleteFileFromCloudinary` নেয়।
+
+**`Promise.all` বনাম `Promise.allSettled`:**
+
+| | একটা file মুছতে fail করলে |
+|---|---|
+| `Promise.all` | সাথে সাথে reject → error handler নিজেই crash করত, user আসল error পেত না |
+| `Promise.allSettled` | বাকিগুলো মুছতে থাকে, কখনো reject করে না → আসল error-টাই response-এ যায় |
+
+- সব file একসাথে (parallel) মোছা হয়, একটার পর একটা না — তাই দ্রুত।
+- `Express.Multer.File` type `@types/multer` থেকে global-এ আসে, import লাগে না।
+
+### ঘ) পুরো `src/app/middleware/globalErrorHandler.ts` (এখনকার)
+
+```ts
+import { APIError } from "better-auth";
+import type { NextFunction, Request, Response } from "express";
+import httpStatus from "http-status";
+import multer from "multer";
+import { ZodError } from "zod"; // ✅ value import, কারণ instanceof-এ লাগবে
+import { envVars } from "../config/env";
+import AppError from "../errorHelpers/AppError";
+import { handleZodError } from "../errorHelpers/handleZodError";
+import type { TErrorResponse, TErrorSources } from "../interfaces/error.interface";
+import { deleteUploadedFiles } from "../utils/deleteUploadedFiles";
+
+export const globalErrorHandler = async (err: unknown, req: Request, res: Response, _next: NextFunction) => {
+	const isDev = envVars.NODE_ENV === "development";
+
+	if (isDev) {
+		console.log("Error from Global Error Handler", err);
+	}
+
+	// error হলে এই request-এ upload হওয়া file আর রাখার দরকার নেই
+	await deleteUploadedFiles(req);
+
+	let statusCode: number = httpStatus.INTERNAL_SERVER_ERROR;
+	let message = "Internal Server Error";
+	let errorSources: TErrorSources[] = [{ path: "", message }];
+	let stack: string | undefined;
+
+	if (err instanceof ZodError) {
+		const simplifiedError = handleZodError(err);
+		statusCode = simplifiedError.statusCode;
+		message = simplifiedError.message;
+		errorSources = simplifiedError.errorSources;
+		stack = err.stack;
+	} else if (err instanceof AppError) {
+		statusCode = err.statusCode;
+		message = err.message;
+		errorSources = [{ path: "", message: err.message }];
+		stack = err.stack;
+	} else if (err instanceof APIError) {
+		statusCode = err.statusCode;
+		message = err.message;
+		errorSources = [{ path: "", message: err.message }];
+		stack = err.stack;
+	} else if (err instanceof multer.MulterError) {
+		statusCode = httpStatus.BAD_REQUEST;
+		message = err.code === "LIMIT_FILE_SIZE" ? "File size must be less than 2MB" : err.message;
+		errorSources = [{ path: err.field ?? "", message }];
+		stack = err.stack;
+	} else if (err instanceof Error) {
+		// production-এ ভেতরের message লুকানো হচ্ছে
+		message = isDev ? err.message : "Something went wrong";
+		errorSources = [{ path: "", message }];
+		stack = err.stack;
+	}
+
+	const errorResponse: TErrorResponse = {
+		success: false,
+		message,
+		errorSources,
+		error: isDev ? err : undefined,
+		stack: isDev ? stack : undefined,
+	};
+
+	res.status(statusCode).json(errorResponse);
+};
+```
+
+> ✏️ eslint-disable comment সরানো হয়েছে (আমরা oxlint ব্যবহার করি) — unused param-এ _ দেওয়া হয়েছে (`next` → `_next`; `req` এখন `deleteUploadedFiles`-এ ব্যবহার হয়, তাই আগের মতোই)।
+
+| ক্রম | Error | Status | কোথা থেকে আসে |
+|---|---|---|---|
+| ১ | `ZodError` | `400` | `validateRequest`, service-এ `.parse()` |
+| ২ | `AppError` | নিজের দেওয়া | আমাদের `throw new AppError(...)` |
+| ৩ | `APIError` | Better Auth-এর | ভুল password, ভুল OTP ইত্যাদি |
+| ৪ | `MulterError` | `400` | file size / field নাম ভুল |
+| ৫ | `Error` (বাকি সব) | `500` | অপ্রত্যাশিত (production-এ message লুকানো) |
+
+- ক্রম জরুরি: সব error-ই শেষ পর্যন্ত `Error` — তাই নির্দিষ্টগুলো আগে, সাধারণ `Error` সবার শেষে।
+- `deleteUploadedFiles` response পাঠানোর **আগে** — যেকোনো error-এ upload হওয়া file মুছে যায়।
+- `error` আর `stack` শুধু development-এ response-এ যায়।
 
 ---
 
@@ -504,7 +630,7 @@ const createSpecialty = async (payload: TCreateSpecialtyPayload): Promise<Specia
 
 ### ✅ (Done)
 
-1. ✅ **File size message ভুল ছিল** (limit 2MB, message 5MB) — `MAX_FILE_SIZE_MB` constant (ধাপ ৫ ও ৬-ক)।
+1. ✅ **File size message ভুল ছিল** (limit 2MB, message 5MB) — `MAX_FILE_SIZE_MB` constant (ধাপ ৫ ও ৬-ক)। Project-এ message এখন `"2MB"` লেখা (ধাপ ৬-ঘ) — সঠিক, তবে constant ব্যবহার করলে limit বদলালে দুই জায়গায় বদলাতে হবে না।
 2. ✅ **`checkAuth` comment করা** — নোটে active রাখা হয়েছে, ধাপ ৮-এ সতর্কবার্তা। Project-এর `specialty.route.ts`-এ নিজে uncomment করে নিও।
 3. ✅ **Error হলে ছবি Cloudinary-তে পড়ে থাকত** — `globalErrorHandler`-এ মোছা (ধাপ ৬-খ), service থেকে `try/catch` সরানো (ধাপ ১২)।
 5. ✅ **Service-এ মুছতে গিয়ে আসল error হারিয়ে যেত** — service-এ আর মোছা হয় না, আর handler-এ `.catch(() => {})` থাকায় আসল error-ই দেখা যায়।
@@ -519,15 +645,28 @@ const createSpecialty = async (payload: TCreateSpecialtyPayload): Promise<Specia
 
 6. **`201`-এর বদলে `httpStatus.CREATED`।** বাকি project-এ `httpStatus` ব্যবহার হয় — একই রকম রাখো।
 
+8. **`globalErrorHandler`-এ `console.log`।** oxlint-এর `no-console` শুধু `warn`/`error` চলতে দেয় — `pnpm lint`-এ ধরা পড়বে।
+
+	```ts
+	console.error("Error from Global Error Handler", err);
+	```
+
+9. **Prisma validation error branch নেই।** [নোট ২৪](./24-query-builder.md)-এর ধাপ ৯-এর `PrismaClientValidationError` → `400` branch এই file-এ এখনো নেই, তাই `?experience=abc`-এর মতো query এখনো `500` দেবে। `else if (err instanceof Error)`-এর আগে যোগ করো।
+
+10. **Message-এ সরাসরি `"2MB"`।** ধাপ ৫-এর `MAX_FILE_SIZE_MB` import করে ব্যবহার করলে limit একটাই জায়গায় থাকে:
+
+	```ts
+	message = err.code === "LIMIT_FILE_SIZE" ? `File size must be less than ${MAX_FILE_SIZE_MB}MB` : err.message;
+	```
+
 ### 🔵 পরে কাজে লাগবে / জেনে রাখো
 
 7. **`mimetype` client পাঠায়।** কেউ `.exe`-এর নাম বদলে `image/png` বলে পাঠাতে পারে। Cloudinary `resource_type: "auto"` নিজে file যাচাই করে, তাই বড় ঝুঁকি নেই — তবে জেনে রাখো।
-8. **Project-এর `globalErrorHandler`-এ পুরনো কিছু জিনিস।** উপরে `/* eslint-disable ... */` আর `console.log` আছে, আর `req`/`next` unused। oxlint-এ `no-console` শুধু `warn`/`error` চলে — `console.log` → `console.warn`, comment সরিয়ে `_req`/`_next` করে দিও।
-9. **Update/delete-এ পুরনো ছবি।** Specialty delete বা icon বদলালে পুরনো ছবি `deleteFileFromCloudinary(oldIcon)` দিয়ে মুছতে হবে, নাহলে Cloudinary ভরে যাবে।
+11. **Update/delete-এ পুরনো ছবি।** Specialty delete বা icon বদলালে পুরনো ছবি `deleteFileFromCloudinary(oldIcon)` দিয়ে মুছতে হবে, নাহলে Cloudinary ভরে যাবে।
 
 ## 🔜 পরে যা যোগ হবে
 
-- [ ] Multiple file upload (`multerUpload.array` / `.fields`) — তখন `globalErrorHandler`-এ `req.files`-ও মুছতে হবে
+- [ ] Multiple file upload (`multerUpload.array` / `.fields`) — error-এ মোছা আগেই তৈরি (ধাপ ৬-গ)
 - [ ] Specialty update-এ নতুন ছবি দিলে পুরনোটা মোছা
 - [ ] Specialty delete-এ Cloudinary থেকে ছবি মোছা
 - [ ] Doctor / patient profile photo upload

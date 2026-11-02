@@ -20,93 +20,169 @@ src/app/config/
 
 ---
 
-## ধাপ ২: env.ts
+## ধাপ ২: env.ts (এখনকার পুরো file)
+
+> 🔄 শুরুতে এখানে শুধু ৫টা variable ছিল, আর check করা হতো আলাদা `requireEnvVariable` array দিয়ে। Project বড় হওয়ার সাথে নতুন variable যোগ হয়েছে, আর check-এর পদ্ধতিও সহজ করা হয়েছে (`getEnv` helper)।
+
+`src/app/config/env.ts`
 
 ```ts
+import AppError from "@/app/errorHelpers/AppError";
 import dotenv from "dotenv";
-// import AppError from "../errorHelpers/AppError";
+import httpStatus from "http-status";
 
 dotenv.config();
 
 interface EnvConfig {
-    NODE_ENV: string;
-    PORT: string;
-    DATABASE_URL: string;
-    BETTER_AUTH_SECRET: string;
-    BETTER_AUTH_URL: string;
-    ACCESS_TOKEN_SECRET: string;
-    REFRESH_TOKEN_SECRET: string;
-    ACCESS_TOKEN_EXPIRES_IN: string;
-    REFRESH_TOKEN_EXPIRES_IN: string;
-    BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN: string;
-    BETTER_AUTH_SESSION_TOKEN_UPDATE_AGE: string;
+	NODE_ENV: string;
+	PORT: string;
+	DATABASE_URL: string;
+	BETTER_AUTH_SECRET: string;
+	BETTER_AUTH_URL: string;
+	ACCESS_TOKEN_SECRET: string;
+	REFRESH_TOKEN_SECRET: string;
+	ACCESS_TOKEN_EXPIRES_IN: string;
+	REFRESH_TOKEN_EXPIRES_IN: string;
+	BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN: string;
+	BETTER_AUTH_SESSION_TOKEN_UPDATE_AGE: string;
+
+	FRONTEND_URL: string;
+
+	EMAIL_SENDER: {
+		SMTP_HOST: string;
+		SMTP_PORT: string;
+		SMTP_USER: string;
+		SMTP_PASS: string;
+		SMTP_FROM: string;
+	};
+
+	GOOGLE_CLIENT_ID: string;
+	GOOGLE_CLIENT_SECRET: string;
+	GOOGLE_CALLBACK_URL: string;
+
+	CLOUDINARY: {
+		CLOUDINARY_CLOUD_NAME: string;
+		CLOUDINARY_API_KEY: string;
+		CLOUDINARY_API_SECRET: string;
+	};
+
+	STRIPE: {
+		STRIPE_SECRET_KEY: string;
+		STRIPE_WEBHOOK_SECRET: string;
+	};
+
+	SUPER_ADMIN_EMAIL: string;
+	SUPER_ADMIN_PASSWORD: string;
 }
 
-const loadEnvVariables = (): EnvConfig => {
-    // ---- শুরু: Required variable check ----
-    // .env file এ নিচের সব variable আছে কিনা check করা হচ্ছে।
-    // কোনোটা না থাকলে app চালু হওয়ার সময়েই পরিষ্কার error message দেবে —
-    // কোন variable টা missing সেটা সরাসরি বলে দেবে, পরে অজানা bug খুঁজতে হবে না।
-    const requireEnvVariable = [
-        "NODE_ENV",
-        "PORT",
-        "DATABASE_URL",
-        "BETTER_AUTH_SECRET",
-        "BETTER_AUTH_URL",
-        // "ACCESS_TOKEN_SECRET",
-        // "REFRESH_TOKEN_SECRET",
-        // "ACCESS_TOKEN_EXPIRES_IN",
-        // "REFRESH_TOKEN_EXPIRES_IN",
-        // "BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN",
-        // "BETTER_AUTH_SESSION_TOKEN_UPDATE_AGE",
-    ];
+// value না থাকলে সাথে সাথে throw; থাকলে TypeScript নিজেই জানে এটা string
+const getEnv = (key: string): string => {
+	const value = process.env[key];
 
-    requireEnvVariable.forEach((variable) => {
-        if (!process.env[variable]) {
-            throw new Error(`Environment variable ${variable} is required but not set in .env file.`);
-            // throw new AppError(
-            //  status.INTERNAL_SERVER_ERROR,
-            //  `Environment variable ${variable} is required but not set in .env file.`,
-            // );
-        }
-    });
-    // ---- শেষ: Required variable check ----
+	if (!value) {
+		throw new AppError(
+			httpStatus.INTERNAL_SERVER_ERROR,
+			`Environment variable ${key} is required but not set in .env file.`,
+		);
+	}
 
-    return {
-        NODE_ENV: process.env.NODE_ENV as string,
-        PORT: process.env.PORT as string,
-        DATABASE_URL: process.env.DATABASE_URL as string,
-        BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET as string,
-        BETTER_AUTH_URL: process.env.BETTER_AUTH_URL as string,
-        // ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET as string,
-        // REFRESH_TOKEN_SECRET: process.env.REFRESH_TOKEN_SECRET as string,
-        // ACCESS_TOKEN_EXPIRES_IN: process.env.ACCESS_TOKEN_EXPIRES_IN as string,
-        // REFRESH_TOKEN_EXPIRES_IN: process.env.REFRESH_TOKEN_EXPIRES_IN as string,
-        // BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN: process.env.BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN as string,
-        // BETTER_AUTH_SESSION_TOKEN_UPDATE_AGE: process.env.BETTER_AUTH_SESSION_TOKEN_UPDATE_AGE as string,
-    };
+	return value;
 };
 
-export const envVars = loadEnvVariables();
+const loadEnvVariables = (): EnvConfig => ({
+	NODE_ENV: getEnv("NODE_ENV"),
+	PORT: getEnv("PORT"),
+	DATABASE_URL: getEnv("DATABASE_URL"),
+	BETTER_AUTH_SECRET: getEnv("BETTER_AUTH_SECRET"),
+	BETTER_AUTH_URL: getEnv("BETTER_AUTH_URL"),
+	ACCESS_TOKEN_SECRET: getEnv("ACCESS_TOKEN_SECRET"),
+	REFRESH_TOKEN_SECRET: getEnv("REFRESH_TOKEN_SECRET"),
+	ACCESS_TOKEN_EXPIRES_IN: getEnv("ACCESS_TOKEN_EXPIRES_IN"),
+	REFRESH_TOKEN_EXPIRES_IN: getEnv("REFRESH_TOKEN_EXPIRES_IN"),
+	BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN: getEnv("BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN"),
+	BETTER_AUTH_SESSION_TOKEN_UPDATE_AGE: getEnv("BETTER_AUTH_SESSION_TOKEN_UPDATE_AGE"),
+	FRONTEND_URL: getEnv("FRONTEND_URL"),
 
+	EMAIL_SENDER: {
+		SMTP_HOST: getEnv("SMTP_HOST"),
+		SMTP_PORT: getEnv("SMTP_PORT"),
+		SMTP_USER: getEnv("SMTP_USER"),
+		SMTP_PASS: getEnv("SMTP_PASS"),
+		SMTP_FROM: getEnv("SMTP_FROM"),
+	},
+
+	GOOGLE_CLIENT_ID: getEnv("GOOGLE_CLIENT_ID"),
+	GOOGLE_CLIENT_SECRET: getEnv("GOOGLE_CLIENT_SECRET"),
+	GOOGLE_CALLBACK_URL: getEnv("GOOGLE_CALLBACK_URL"),
+
+	CLOUDINARY: {
+		CLOUDINARY_CLOUD_NAME: getEnv("CLOUDINARY_CLOUD_NAME"),
+		CLOUDINARY_API_KEY: getEnv("CLOUDINARY_API_KEY"),
+		CLOUDINARY_API_SECRET: getEnv("CLOUDINARY_API_SECRET"),
+	},
+
+	STRIPE: {
+		STRIPE_SECRET_KEY: getEnv("STRIPE_SECRET_KEY"),
+		STRIPE_WEBHOOK_SECRET: getEnv("STRIPE_WEBHOOK_SECRET"),
+	},
+
+	SUPER_ADMIN_EMAIL: getEnv("SUPER_ADMIN_EMAIL"),
+	SUPER_ADMIN_PASSWORD: getEnv("SUPER_ADMIN_PASSWORD"),
+});
+
+export const envVars = loadEnvVariables();
 ```
 
 **কীভাবে কাজ করে:**
-1. `dotenv.config()` → `.env` file থেকে সব variable `process.env` এ load করে
+1. `dotenv.config()` → `.env` file থেকে সব variable `process.env`-এ load করে
 2. `interface EnvConfig` → কোন কোন variable থাকবে, তার type
-3. `requireEnvVariable` loop → প্রতিটা required variable আছে কিনা check, না থাকলে `throw`
-4. `return {...}` → সব variable একটা object এ সাজিয়ে দেয়
-5. `export const envVars` → অন্য file এ `envVars.PORT`, `envVars.DATABASE_URL` এভাবে use করবো
+3. `getEnv(key)` → variable আছে কিনা check করে। না থাকলে `throw`, থাকলে `string` ফেরত দেয়
+4. `loadEnvVariables()` → সব variable `getEnv` দিয়ে পড়ে একটা object বানায়
+5. `export const envVars` → অন্য file-এ `envVars.PORT`, `envVars.STRIPE.STRIPE_SECRET_KEY` এভাবে ব্যবহার
 
-> 📝 Comment করা variable গুলো (`ACCESS_TOKEN_*`, `REFRESH_TOKEN_*`, `BETTER_AUTH_SESSION_*`) পরে JWT / session এর কাজে লাগবে — তখন uncomment করবো।
-> `AppError` এর অংশটাও পরে custom error class বানানোর পর use করবো।
+### আগের পদ্ধতি বনাম `getEnv`
+
+| | আগে (`requireEnvVariable` array) | এখন (`getEnv`) |
+| --- | --- | --- |
+| Variable-এর নাম কয় জায়গায় লিখতে হয় | ৩ (interface, array, return) | ২ (interface, `getEnv`) |
+| Type | `process.env.X as string` (জোর করে) | `getEnv` নিজেই `string` ফেরত দেয়, `as` লাগে না |
+| Array-তে নাম দিতে ভুলে গেলে | Check হয় না, `undefined` চলে আসে | এমন ভুল হওয়ার সুযোগই নেই |
+| Error | `Error` | `AppError` (500) |
+
+> `const loadEnvVariables = (): EnvConfig => ({ ... })` — arrow function-এ `{ }`-কে `( )` দিয়ে মুড়লে সরাসরি object return হয়, `return` লিখতে হয় না।
+
+### Nested group
+
+যেসব variable একসাথে ব্যবহার হয়, সেগুলো group করা হয়েছে:
+
+```ts
+envVars.EMAIL_SENDER.SMTP_HOST;
+envVars.CLOUDINARY.CLOUDINARY_API_KEY;
+envVars.STRIPE.STRIPE_WEBHOOK_SECRET;
+```
+
+`.env` file-এ কিন্তু সব flat থাকে (`SMTP_HOST=...`)। Group শুধু code-এর ভেতরে।
+
+### কোন variable কোন নোটে যোগ হয়েছে
+
+| Variable | কাজ | নোট |
+| --- | --- | --- |
+| `NODE_ENV`, `PORT`, `DATABASE_URL` | Environment, port, DB connection | ০৬ (এই নোট) |
+| `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | Better Auth | [০৫](./05-better-auth-setup-and-auth-schemas.md) |
+| `ACCESS_TOKEN_*`, `REFRESH_TOKEN_*`, `BETTER_AUTH_SESSION_TOKEN_*` | JWT আর session-এর secret ও মেয়াদ | [১৩](./13-jwt-token-cookie-and-check-auth.md) |
+| `FRONTEND_URL` | CORS, email link, PDF footer | — |
+| `EMAIL_SENDER.*` | Nodemailer SMTP | [২০](./20-nodemailer-verify-email.md) |
+| `GOOGLE_*` | Google OAuth | [২২](./22-google-oauth.md) |
+| `CLOUDINARY.*` | File upload | [২৩](./23-multer-single-image-upload.md) |
+| `STRIPE.*` | Payment ও webhook | [২৮](./28-stripe-payment.md) |
+| `SUPER_ADMIN_*` | Super admin seed | [২৯](./29-seed-super-admin.md) |
 
 **ব্যবহার:**
 
 ```ts
 import { envVars } from "@/app/config/env";
 
-const PORT = envVars.PORT;
+const PORT = Number(envVars.PORT);
 ```
 
 ---
@@ -119,17 +195,21 @@ Package: https://www.npmjs.com/package/http-status
 pnpm add http-status
 ```
 
+```ts
+import httpStatus from "http-status";
+```
+
 **কেন?** `201`, `404`, `500` এর মতো number মনে রাখার বদলে নাম দিয়ে লেখা যায় — code পড়তে সহজ:
 
 | Number | http-status |
 |---|---|
-| `200` | `status.OK` |
-| `201` | `status.CREATED` |
-| `400` | `status.BAD_REQUEST` |
-| `401` | `status.UNAUTHORIZED` |
-| `403` | `status.FORBIDDEN` |
-| `404` | `status.NOT_FOUND` |
-| `500` | `status.INTERNAL_SERVER_ERROR` |
+| `200` | `httpStatus.OK` |
+| `201` | `httpStatus.CREATED` |
+| `400` | `httpStatus.BAD_REQUEST` |
+| `401` | `httpStatus.UNAUTHORIZED` |
+| `403` | `httpStatus.FORBIDDEN` |
+| `404` | `httpStatus.NOT_FOUND` |
+| `500` | `httpStatus.INTERNAL_SERVER_ERROR` |
 
 ---
 
@@ -137,80 +217,67 @@ pnpm add http-status
 
 > এগুলো শুধু suggestion — উপরের code বদলানো হয়নি।
 
-### 🔴 গুরুত্বপূর্ণ
-
-**১. `interface` আর `return` মিলছে না → TypeScript error**
-`EnvConfig` interface এ `ACCESS_TOKEN_SECRET` সহ ৬টা field **required**, কিন্তু `return` এ সেগুলো comment করা। তাই `pnpm typecheck` / `pnpm build` এ error আসবে:
-`Type '{...}' is missing the following properties from type 'EnvConfig': ACCESS_TOKEN_SECRET, ...`
-(`pnpm dev` এ ধরা পড়ে না কারণ `tsx` type check করে না।)
-
-Fix — interface এও ওগুলো comment করে দাও (পরে একসাথে uncomment করবে):
-
-```ts
-interface EnvConfig {
-    NODE_ENV: string;
-    PORT: string;
-    DATABASE_URL: string;
-    BETTER_AUTH_SECRET: string;
-    BETTER_AUTH_URL: string;
-    // ACCESS_TOKEN_SECRET: string;
-    // ...
-}
-```
-
-**২. "crash না করে error দেবে" — আসলে app বন্ধ হয়ে যাবে (এবং সেটাই ভালো)**
-`throw new Error` দিলে server **চালু হবে না**। এটাকে বলে **fail fast** — ভুল config নিয়ে server চলার চেয়ে শুরুতেই থেমে যাওয়া ভালো। পার্থক্য হলো, এখন error message পরিষ্কার।
-
 ### 🟡 ভালো practice
 
-**৩. সব জায়গায় `envVars` use করো**
-এখন `prisma.ts`, `server.ts`, `prisma7.config.ts` এ আলাদা আলাদা `dotenv/config` + `process.env` আছে। App এর ভেতরে (`src/`) সব জায়গায় `envVars` use করলে একটাই source থাকবে:
+1. **`.env.example` update করো** — তোমার `.env.example`-এ এখন শুধু `PORT` আর `DATABASE_URL` আছে, কিন্তু app চালাতে ৩০টার মতো variable লাগে। নতুন machine-এ clone করলে কোনগুলো লাগবে বোঝা যাবে না। Value ছাড়া সব নাম রাখো:
+   ```dotenv
+   NODE_ENV=development
+   PORT=5000
+   DATABASE_URL=
+   BETTER_AUTH_SECRET=
+   BETTER_AUTH_URL=
+   ACCESS_TOKEN_SECRET=
+   REFRESH_TOKEN_SECRET=
+   ACCESS_TOKEN_EXPIRES_IN=
+   REFRESH_TOKEN_EXPIRES_IN=
+   BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN=
+   BETTER_AUTH_SESSION_TOKEN_UPDATE_AGE=
+   FRONTEND_URL=
+   SMTP_HOST=
+   SMTP_PORT=
+   SMTP_USER=
+   SMTP_PASS=
+   SMTP_FROM=
+   GOOGLE_CLIENT_ID=
+   GOOGLE_CLIENT_SECRET=
+   GOOGLE_CALLBACK_URL=
+   CLOUDINARY_CLOUD_NAME=
+   CLOUDINARY_API_KEY=
+   CLOUDINARY_API_SECRET=
+   STRIPE_SECRET_KEY=
+   STRIPE_WEBHOOK_SECRET=
+   SUPER_ADMIN_EMAIL=
+   SUPER_ADMIN_PASSWORD=
+   ```
 
-```ts
-// server.ts
-const PORT = Number(envVars.PORT);
+2. **`NODE_ENV`-এর type আরও নির্দিষ্ট করো** — এখন যেকোনো string চলে, তাই `"develop"` লিখলে `isDev` চুপচাপ `false` হয়ে যাবে:
+   ```ts
+   NODE_ENV: "development" | "production";
+   ```
+   তবে তখন `getEnv`-এর `string`-কে check করে এই type-এ আনতে হবে।
 
-// prisma.ts
-const adapter = new PrismaPg({ connectionString: envVars.DATABASE_URL });
-```
+3. **`prisma.ts`-এ `import "dotenv/config"` আর লাগে না** — `envVars` import করলেই `env.ts`-এর `dotenv.config()` চলে যায়। দুইবার load করলে ক্ষতি নেই, শুধু অপ্রয়োজনীয়। (`prisma7.config.ts` app-এর বাইরে চলে, ওখানে রেখে দাও।)
 
-(`prisma7.config.ts` app এর বাইরে চলে — ওখানে `dotenv/config` থাকুক।)
+### 🔵 পরে কাজে লাগবে / জেনে রাখো
 
-**৪. `PORT` কে number বানাও**
-`.env` থেকে সব `string` আসে। `app.listen` এ number দেওয়াই ঠিক — `Number(envVars.PORT)`।
+4. **Missing env-এ `AppError` না দিলেও চলে** — `AppError` আসলে HTTP response-এর জন্য, কিন্তু এই error হয় server চালু হওয়ার সময়, তখন কোনো request নেই। Status code `500`-এর কোনো মানে নেই, শুধু message-টা কাজে লাগে। সাধারণ `throw new Error(...)` দিলেও একই কাজ হবে। এতে `env.ts`-এর সাথে `AppError`-এর কোনো সম্পর্কও থাকবে না।
 
-**৫. `NODE_ENV` এর type আরও নির্দিষ্ট করো**
+5. **Fail fast** — কোনো variable না থাকলে server **চালুই হবে না**। ভুল config নিয়ে server চলার চেয়ে শুরুতেই পরিষ্কার message দিয়ে থেমে যাওয়া ভালো।
 
-```ts
-NODE_ENV: "development" | "production";
-```
+6. **`zod` দিয়ে env validation** — এখনও variable-এর নাম দুই জায়গায় লিখতে হয় (interface আর `getEnv`)। `zod` দিয়ে একবার লিখলেই check আর type দুটোই হয়, আর `PORT` auto number হয়ে যায়:
+   ```ts
+   const envSchema = z.object({
+   	NODE_ENV: z.enum(["development", "production"]),
+   	PORT: z.coerce.number(),
+   	DATABASE_URL: z.url(),
+   });
+   export const envVars = envSchema.parse(process.env);
+   ```
 
-এতে ভুল বানান (`"prod"`) ধরা পড়বে।
+### ✅ (Done)
 
-**৬. `.env.example` file রাখো**
-`.env` git এ যায় না, তাই নতুন কেউ (বা নতুন machine এ তুমি) জানবে না কোন variable লাগবে। Value ছাড়া একটা `.env.example` commit করো:
-
-```dotenv
-NODE_ENV=
-PORT=
-DATABASE_URL=
-BETTER_AUTH_SECRET=
-BETTER_AUTH_URL=
-```
-
-### 🔵 পরে কাজে লাগবে
-
-**৭. `zod` দিয়ে env validation (advanced)**
-এখনকার পদ্ধতিতে variable name তিন জায়গায় লিখতে হয় (interface, array, return)। `zod` দিয়ে একবার লিখলেই check + type দুটোই হয়ে যায়, আর `PORT` এর মতো value auto number এ convert করা যায়:
-
-```ts
-const envSchema = z.object({
-    NODE_ENV: z.enum(["development", "production"]),
-    PORT: z.coerce.number(),
-    DATABASE_URL: z.string().url(),
-});
-export const envVars = envSchema.parse(process.env);
-```
-
-**৮. http-status দিয়ে status code লেখো**
-Controller গুলোতে `httpStatusCode: 201` এর বদলে `httpStatusCode: status.CREATED` লিখলে পড়তে সহজ হবে।
+- **`interface` আর `return` না মেলা** — এখন সব variable দুই জায়গাতেই আছে, comment করা কিছু নেই।
+- **`process.env.X as string`** — `getEnv` দিয়ে বদলানো হয়েছে, `as` আর লাগে না।
+- **সব জায়গায় `envVars`** — `server.ts` আর `prisma.ts` এখন `envVars` ব্যবহার করে।
+- **`PORT` number** — `server.ts`-এ `Number(envVars.PORT)` ([নোট ৩৭](./37-handle-server-error.md))।
+- **http-status ব্যবহার** — সব controller/service-এ `httpStatus.CREATED` ইত্যাদি।

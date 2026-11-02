@@ -93,14 +93,20 @@ const toPositiveInt = (value: unknown, fallback: number): number => {
  */
 const toNested = (path: string, leaf: unknown, useSome = true): AnyObject => {
 	const parts = path.split(".");
+	const lastKey = parts.at(-1) ?? path; // split সবসময় অন্তত ১টা অংশ দেয়
+	const parentKeys = parts.slice(0, -1);
 
-	return parts.reduceRight<unknown>((node, key, index) => {
-		const wrapSome = useSome && index === 0 && parts.length === 3;
-		return { [key]: wrapSome ? { some: node } : node };
-	}, leaf) as AnyObject;
+	// শুরুটাই object ({ title: leaf }), তাই accumulator সবসময় AnyObject
+	return parentKeys.reduceRight<AnyObject>(
+		(node, key, index) => {
+			const wrapSome = useSome && index === 0 && parts.length === 3;
+			return { [key]: wrapSome ? { some: node } : node };
+		},
+		{ [lastKey]: leaf },
+	);
 };
 
-export class QueryBuilder<T, TWhere = AnyObject, TInclude = AnyObject> {
+export class QueryBuilder<T, TWhere extends AnyObject = AnyObject, TInclude extends AnyObject = AnyObject> {
 	private conditions: AnyObject[] = [];
 	private orderBy: AnyObject[] = [];
 	private includeArgs: AnyObject = {};
@@ -134,7 +140,7 @@ export class QueryBuilder<T, TWhere = AnyObject, TInclude = AnyObject> {
 	filter(): this {
 		const { filterableFields = [], enumFields = [], caseInsensitiveFields = [] } = this.config;
 
-		// শুধু whitelist-এ থাকা field-ই দেখা হয় — বাকি সব query key নিজে থেকেই ignore
+		// শুধু whitelist-এ থাকা field-ই দেখি — বাকি সব query key auto-ignore
 		for (const field of filterableFields) {
 			const raw = this.queryParams[field];
 			if (raw === undefined || raw === "") continue;
@@ -162,7 +168,7 @@ export class QueryBuilder<T, TWhere = AnyObject, TInclude = AnyObject> {
 		const sortBy = requested && sortableFields.includes(requested) ? requested : defaultSortBy;
 		const sortOrder = this.getString("sortOrder")?.toLowerCase() === "asc" ? "asc" : "desc";
 
-		// tie-breaker: একই value-ওয়ালা row page বদলালে duplicate বা miss হবে না
+		// tie-breaker: একই value-ওয়ালা row page বদলালে duplicate/miss হবে না
 		this.orderBy = [toNested(sortBy, sortOrder, false)];
 		for (const field of tieBreakerFields) {
 			if (field !== sortBy) this.orderBy.push({ [field]: sortOrder });
@@ -202,7 +208,7 @@ export class QueryBuilder<T, TWhere = AnyObject, TInclude = AnyObject> {
 
 	// code থেকে fixed include
 	include(relations: TInclude): this {
-		this.includeArgs = { ...this.includeArgs, ...(relations as AnyObject) };
+		this.includeArgs = { ...this.includeArgs, ...relations };
 		return this;
 	}
 
@@ -222,7 +228,7 @@ export class QueryBuilder<T, TWhere = AnyObject, TInclude = AnyObject> {
 
 	// code থেকে fixed condition, যেমন { isDeleted: false }
 	where(condition: TWhere): this {
-		this.conditions.push(condition as AnyObject);
+		this.conditions.push(condition);
 		return this;
 	}
 
@@ -248,6 +254,9 @@ export class QueryBuilder<T, TWhere = AnyObject, TInclude = AnyObject> {
 		]);
 
 		return {
+			// QueryBuilder generic, তাই Prisma delegate unknown[] দেয়; T caller-এর দেওয়া type
+			// (runtime-এ generic check করা সম্ভব না — এটা ইচ্ছাকৃত type boundary)
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion
 			data: data as T[],
 			meta: {
 				page: this.page,
@@ -360,6 +369,38 @@ if (sortBy !== "id") this.orderBy.push({ id: sortOrder });
 - **Tie-breaker কেন?** অনেক row-এর `createdAt` (বা `appointmentFee`) একই হলে DB প্রতিবার একই ক্রম দেবে এমন নিশ্চয়তা নেই — তখন page 1 আর page 2-তে একই row দুবার আসতে বা কোনোটা বাদ পড়তে পারে। Unique field দিয়ে শেষে আরেকবার sort করলে ক্রম সবসময় একই।
 - `field !== sortBy` → `?sortBy=id` দিলে `id` দুবার যোগ হয় না।
 - আগের module-গুলোতে কিছু বদলাতে হয়নি — default `["id"]`।
+
+---
+
+### Type-safe update (`as` cast কমানো)
+
+> ✏️ পরে code-টা আরও type-safe করা হয়েছে — উপরের code এখনকার version। Behaviour একই, শুধু অপ্রয়োজনীয় `as` cast সরানো হয়েছে।
+
+| জায়গা | আগে | এখন | কেন |
+| --- | --- | --- | --- |
+| Class generic | `TWhere = AnyObject`, `TInclude = AnyObject` | `TWhere extends AnyObject = AnyObject` | `extends` দিলে TypeScript জানে এগুলো object, তাই সরাসরি `AnyObject`-এর জায়গায় বসানো যায় |
+| `include()` | `...(relations as AnyObject)` | `...relations` | Generic-এ `extends` থাকায় cast লাগে না |
+| `where()` | `push(condition as AnyObject)` | `push(condition)` | একই কারণ |
+| `toNested` | `reduceRight<unknown>(..., leaf) as AnyObject` | শেষ key দিয়ে শুরু: `reduceRight<AnyObject>(..., { [lastKey]: leaf })` | শুরুর value-ই object, তাই ফলও সবসময় object — শেষে `as` লাগে না |
+| `execute()` | `data as T[]` | একই, কিন্তু `oxlint-disable-next-line` comment সহ | এই একটা cast এড়ানো যায় না (নিচে দেখো) |
+
+**`toNested` কীভাবে কাজ করে** (`"specialties.specialty.title"`, leaf = `"cardiology"`):
+
+```
+parts      = ["specialties", "specialty", "title"]
+lastKey    = "title"
+parentKeys = ["specialties", "specialty"]
+
+শুরু                    → { title: "cardiology" }
+key="specialty" (index 1) → { specialty: { title: "cardiology" } }
+key="specialties" (index 0, ৩ ভাগ) → { specialties: { some: { specialty: { title: "cardiology" } } } }
+```
+
+`parts.at(-1)` শেষ element দেয়, কিন্তু type-এ `string | undefined` (খালি array হলে `undefined`)। `split` সবসময় অন্তত ১টা অংশ দেয়, তবু TypeScript সেটা জানে না, তাই `?? path` দিয়ে fallback।
+
+**`data as T[]` কেন রাখতে হলো?** `PrismaModelDelegate.findMany` সব model-এর জন্য কাজ করে বলে `unknown[]` ফেরত দেয়। আসল type (`DoctorWithRelations` ইত্যাদি) caller `QueryBuilder<T>`-এ বলে দেয়। Runtime-এ generic type check করার কোনো উপায় নেই, তাই এখানে cast-ই একমাত্র পথ। oxlint-এর type-aware rule `no-unsafe-type-assertion` এটা ধরে, তাই কারণ লিখে শুধু ওই লাইনে rule বন্ধ করা হয়েছে।
+
+> `oxlint-disable-next-line` আমাদের linter (oxlint)-এর নিজের comment, তাই এটা কাজ করে — `eslint-disable`-এর মতো অকেজো না।
 
 ---
 

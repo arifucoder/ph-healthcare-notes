@@ -138,6 +138,8 @@ export const seedSuperAdmin = async () => {
 
 ## ধাপ ৪: `server.ts` (পুরোটা)
 
+> 🔄 `server.ts`-এর error handling পরে আরও উন্নত করা হয়েছে — নতুন version দেখো [নোট ৩৭](./37-handle-server-error.md)-এ।
+
 Seed server চালু হওয়ার **আগে** চলবে, আর fail করলে server বন্ধ হবে। সাথে graceful shutdown আর cron — তাই পুরো file:
 
 ```ts

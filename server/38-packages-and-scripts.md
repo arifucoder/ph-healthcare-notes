@@ -165,3 +165,9 @@ pnpm add -D typescript tsx tsdown prisma oxlint oxlint-tsgolint \
    ```
 
 4. **`stripe:webhook`-এ port hardcode করা।** `.env`-এ `PORT` বদলালে এখানেও হাতে বদলাতে হবে, খেয়াল রেখো।
+
+---
+
+## 🔗 Repository
+
+[github.com/arifucoder/phdoc-server](https://github.com/arifucoder/phdoc-server)

@@ -166,10 +166,13 @@ export default defineConfig({
 	outDir: "dist",
 	clean: true,
 	sourcemap: true,
-	fixedExtension: false, // output: dist/index.js (index.mjs না)
-	copy: [{ from: "src/app/templates", to: "dist/templates" }],
+	fixedExtension: false, // output: dist/server.js (server.mjs না)
+	// "to" হলো যে folder-এর ভেতরে কপি হবে → dist/ + templates = dist/templates
+	copy: [{ from: "src/app/templates", to: "dist" }],
 });
 ```
+
+> ⚠️ `to: "dist/templates"` দিলে tsdown `templates` folder-টাই ওর ভেতরে কপি করে, ফলে হয় `dist/templates/templates/otp.ejs`। Code খোঁজে `dist/templates/otp.ejs`-এ, তাই template পাওয়া যায় না। `to` হলো **যে folder-এর ভেতরে** কপি হবে, তাই `to: "dist"` দিলেই `dist/templates` হয়।
 
 ### ধাপ ৭: `src/app/templates/otp.ejs`
 

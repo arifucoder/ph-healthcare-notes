@@ -126,7 +126,7 @@ export default defineConfig({
 });
 ```
 
-> পরে email template ইত্যাদি add করলে এই config update লাগতে পারে।
+> পরে email template-এর জন্য `copy` যোগ হয়েছে — update করা config দেখো [নোট ২০](./20-nodemailer-verify-email.md)-এর ধাপ ৬-এ।
 
 এখন import এভাবে লেখা যাবে:
 

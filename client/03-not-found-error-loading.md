@@ -377,6 +377,79 @@ export default function CommonLoading() {
 
 ### 🔵 পরে কাজে লাগবে / জেনে রাখো
 
-3. **`app/not-found.tsx`-এ Navbar/Footer থাকবে না** — এটা শুধু root layout-এর ভেতরে render হয়, `(commonLayout)/layout.tsx`-এর ভেতরে না। 404 page-এ navbar চাইলে `NotFound` component-এর ভেতরেই `<Navbar />` বসাতে হবে।
+3. **`app/not-found.tsx`-এ Navbar/Footer থাকবে না**
 
-4. **Dashboard-এর জন্য আলাদা `error.tsx`** — `(dashboardLayout)/error.tsx` রাখলে dashboard-এ error হলে sidebar থেকে যাবে, শুধু content অংশে error দেখাবে।
+   **কেন:** Unmatched URL (যেমন `/abcd`) কোনো route group-এর সাথে মেলে না, তাই Next.js শুধু root `app/layout.tsx`-এর ভেতরে `app/not-found.tsx` render করে। `(commonLayout)/layout.tsx` (যেখানে Navbar/Footer থাকবে) মাঝখানে আসেই না:
+
+   ```
+   /consultation  →  RootLayout → (commonLayout)/layout [Navbar+Footer] → page     ✅ navbar আছে
+   /abcd          →  RootLayout → not-found.tsx                                    ❌ navbar নেই
+   ```
+
+   **সমাধান:** Navbar আর Footer সরাসরি `NotFound` component-এর ভেতরে বসাও:
+
+   ```tsx
+   // src/app/not-found.tsx
+   import Link from "next/link";
+   import Navbar from "@/components/shared/Navbar";
+   import Footer from "@/components/shared/Footer";
+
+   export default function NotFound() {
+   	return (
+   		<>
+   			<Navbar />
+   			<main className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+   				<h1 className="text-4xl font-bold">404</h1>
+   				<p className="text-muted-foreground">The page you are looking for does not exist.</p>
+   				<Link href="/" className="underline">
+   					Go back home
+   				</Link>
+   			</main>
+   			<Footer />
+   		</>
+   	);
+   }
+   ```
+
+   > `Navbar` আর `Footer` এখনো বানানো হয়নি — `(commonLayout)/layout.tsx`-এর জন্য যখন `src/components/shared/`-এ বানাবে, তখন এখানেও একই component import করবে। `min-h-screen` এর বদলে `min-h-[60vh]` দেওয়া হয়েছে, যাতে navbar/footer সহ page অতিরিক্ত লম্বা না হয়।
+
+4. **Dashboard-এর জন্য আলাদা `error.tsx`**
+
+   **কেন:** `error.tsx` নিজের folder-এর `layout.tsx`-কে wrap করে না, শুধু তার **নিচের** অংশ (page) ঢাকে। এখন শুধু `app/error.tsx` আছে, যেটা `(dashboardLayout)/layout.tsx`-এর **উপরে** বসে। তাই dashboard-এর কোনো page-এ error হলে পুরো dashboard layout (sidebar সহ) সরে গিয়ে error page দেখায়।
+
+   `(dashboardLayout)/error.tsx` রাখলে এটা dashboard layout-এর **ভেতরে** বসে:
+
+   ```
+   শুধু app/error.tsx থাকলে:
+   RootLayout → [app/error.tsx] → (dashboardLayout)/layout [Sidebar] → page 💥
+                     ↑ এখানে ধরে → sidebar সহ সব চলে যায় ❌
+
+   (dashboardLayout)/error.tsx থাকলে:
+   RootLayout → (dashboardLayout)/layout [Sidebar] → [(dashboardLayout)/error.tsx] → page 💥
+                                                         ↑ এখানে ধরে → sidebar থেকে যায় ✅
+   ```
+
+   ```tsx
+   // src/app/(dashboardLayout)/error.tsx
+   "use client";
+
+   import { useEffect } from "react";
+
+   export default function DashboardError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
+   	useEffect(() => {
+   		console.error(error);
+   	}, [error]);
+
+   	return (
+   		<div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+   			<h2 className="text-2xl font-semibold">Failed to load this section</h2>
+   			<p className="text-sm text-muted-foreground">Sidebar থেকে অন্য page-এ যেতে পারো, বা আবার চেষ্টা করো।</p>
+   			<button onClick={() => retry()} className="rounded-md border px-4 py-2">
+   				Try again
+   			</button>
+   		</div>
+   	);
+   }
+   ```
+
+   > User sidebar দিয়ে অন্য page-এ চলে যেতে পারে, পুরো app reload করতে হয় না। একইভাবে চাইলে `admin/dashboard/error.tsx`, `doctor/dashboard/error.tsx` আলাদা করেও রাখা যায় — Next.js সবসময় **সবচেয়ে কাছের** `error.tsx` নেয়।

@@ -77,8 +77,9 @@ export interface ApiErrorResponse {
 ## ধাপ ৪: httpClient — `src/lib/axios/httpClient.ts`
 
 ```ts
-import axios, { type AxiosInstance, type Method } from "axios";
 import type { ApiResponse } from "@/types/api.types";
+import axios, { type AxiosInstance, type Method } from "axios";
+import { connection } from "next/server";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -93,6 +94,10 @@ export interface ApiRequestOptions {
 
 // পরে cookie যোগ করার সময় শুধু এই function বদলাতে হবে
 const axiosInstance = async (): Promise<AxiosInstance> => {
+	// axios ভেতরে Date.now() ব্যবহার করে, যেটা Next.js চেনে না।
+	// connection() Next-কে বলে: এই request আসল request-time-এ চালাও, prerender কোরো না।
+	await connection();
+
 	return axios.create({
 		baseURL: API_BASE_URL,
 		timeout: 30000,
@@ -125,8 +130,7 @@ const request = async <TData>(
 };
 
 export const httpClient = {
-	get: <TData>(endpoint: string, options?: ApiRequestOptions) =>
-		request<TData>("GET", endpoint, undefined, options),
+	get: <TData>(endpoint: string, options?: ApiRequestOptions) => request<TData>("GET", endpoint, undefined, options),
 
 	post: <TData>(endpoint: string, data: unknown, options?: ApiRequestOptions) =>
 		request<TData>("POST", endpoint, data, options),
@@ -140,6 +144,7 @@ export const httpClient = {
 	delete: <TData>(endpoint: string, options?: ApiRequestOptions) =>
 		request<TData>("DELETE", endpoint, undefined, options),
 };
+
 ```
 
 ### প্রতিটা অংশ কী করছে

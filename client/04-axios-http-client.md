@@ -124,7 +124,15 @@ const request = async <TData>(
 		});
 		return response.data;
 	} catch (error) {
-		console.error(`${method} request to ${endpoint} failed:`, error);
+		// পুরো error log কোরো না: error.config.data-তে request body (password) থাকে
+		if (axios.isAxiosError(error)) {
+			console.error(`[httpClient] ${method} ${endpoint} failed`, {
+				status: error.response?.status,
+				code: error.code,
+			});
+		} else {
+			console.error(`[httpClient] ${method} ${endpoint} failed`, error instanceof Error ? error.message : error);
+		}
 		throw error;
 	}
 };
@@ -154,8 +162,25 @@ export const httpClient = {
 | `API_BASE_URL` + `throw` | `.env` থেকে server-এর URL নেয়। না থাকলে শুরুতেই পরিষ্কার error দেয়, যাতে পরে "request কোথায় যাচ্ছে" খুঁজতে না হয় |
 | `ApiRequestOptions` | চাইলে extra `params` (URL query: `?page=1&limit=10`) আর `headers` পাঠানো যায় |
 | `axiosInstance()` | baseURL, timeout (৩০ সেকেন্ড), JSON header সহ একটা axios তৈরি করে। এটা `async` রাখা হয়েছে কারণ পরে এখানে `await cookies()` দিয়ে token যোগ হবে |
-| `request()` | **সব method-এর আসল কাজ এক জায়গায়** — instance বানায়, request পাঠায়, শুধু `response.data` (server-এর JSON) ফেরত দেয়। Error হলে log করে আবার `throw` করে, যাতে যে call করেছে সে-ও error জানতে পারে |
+| `request()` | **সব method-এর আসল কাজ এক জায়গায়** — instance বানায়, request পাঠায়, শুধু `response.data` (server-এর JSON) ফেরত দেয়। Error হলে শুধু ছোট তথ্য log করে (নিচে দেখো), তারপর আবার `throw` করে, যাতে যে call করেছে সে-ও error জানতে পারে |
 | `httpClient` | `get/post/put/patch/delete` — সবাই ভেতরে `request()` call করে, শুধু method বদলায়। `get`/`delete`-এ body থাকে না তাই `undefined` |
+
+### Error log-এ কেন পুরো `error` না
+
+Axios error object-এর ভেতরে `error.config.data` থাকে = **যে body পাঠিয়েছিলাম** (যেমন login-এর `password`)। পুরো `error` log করলে password terminal/browser console-এ চলে আসে। তাই শুধু দরকারি ২টা জিনিস log করি:
+
+| Field | মানে | উদাহরণ |
+|---|---|---|
+| `status` | server কী status দিল | `401`, `404`, `500` (server-এ না পৌঁছালে `undefined`) |
+| `code` | axios-এর নিজের error code | `ERR_NETWORK` (server বন্ধ), `ECONNABORTED` (timeout), `ERR_BAD_REQUEST` (4xx) |
+
+- `axios.isAxiosError(error)` → error টা axios-এর কিনা check করে (তাহলেই `response`, `code` পাওয়া যায়)।
+- না হলে (যেমন `connection()`-এর error) → শুধু `error.message` log।
+- `[httpClient]` prefix → console-এ কোন file থেকে log এসেছে সহজে খোঁজা যায়।
+
+```
+[httpClient] POST /auth/login failed { status: 401, code: 'ERR_BAD_REQUEST' }
+```
 
 > 💡 Teacher-এর version-এ ৫টা আলাদা function-এ (`httpGet`, `httpPost` ...) একই try/catch ৫ বার লেখা ছিল। এখানে একটা `request()` function দিয়ে বাকিগুলো বানানো — কাজ একই, code কম, বদলাতে হলে এক জায়গায়।
 

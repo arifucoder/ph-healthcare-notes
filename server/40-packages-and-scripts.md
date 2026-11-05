@@ -1,4 +1,4 @@
-# 39 - Packages ও Scripts (phdoc-server)
+# 40 - Packages ও Scripts (phdoc-server)
 
 `phdoc-server`-এ যত package আর script আছে, সব এক জায়গায় রাখা হলো। প্রতিটা package কী কাজ করে, কীভাবে install করতে হয় আর তার doc কোথায়, সব এখানে পাবে।
 
@@ -171,3 +171,6 @@ pnpm add -D typescript tsx tsdown prisma oxlint oxlint-tsgolint \
 ## 🔗 Repository
 
 [github.com/arifucoder/phdoc-server](https://github.com/arifucoder/phdoc-server)
+
+// need to do in future
+1) login zod schema

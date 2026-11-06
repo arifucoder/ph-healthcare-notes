@@ -24,8 +24,10 @@ LoginForm (browser)
 |---|---|---|
 | `types/auth.types.ts` | backend-এর login response দেখতে কেমন | — (শুধু type) |
 | `zod/auth.validation.ts` | email/password-এর নিয়ম | client + server দুই জায়গাতেই |
+| `lib/cookieConfig.ts` | cookie-র নাম, option, session-এর মেয়াদ (constant) | server + `proxy.ts` |
+| `lib/jwtUtils.ts` | token-এর মেয়াদ কতক্ষণ বাকি (`jwt.decode`) | server + `proxy.ts` |
 | `lib/cookieUtils.ts` | cookie **get / set / delete** — শুধু এটুকুই | শুধু server (`server-only`) |
-| `lib/tokenUtils.ts` | token-এর মেয়াদ কতক্ষণ বাকি দেখা + cookie-তে token বসানো | শুধু server (`server-only`) |
+| `lib/tokenUtils.ts` | token expire/expiring check + ৩টা cookie একসাথে বসানো | শুধু server (`server-only`) |
 | `lib/authUtils.ts` | কোন role কোন route-এ যেতে পারে, login-এর পর কোথায় যাবে | server (পরে `proxy.ts`-ও ব্যবহার করবে) |
 | `actions/auth.actions.ts` | **login-এর আসল কাজ** — সব জোড়া লাগায় | server (`"use server"`) |
 | `components/shared/form/AppSubmitButton.tsx` | loading spinner সহ submit button | client |
@@ -148,14 +150,24 @@ pnpm add -D @types/jsonwebtoken
 
 ---
 
-## ধাপ ৫: Cookie Utils — `src/lib/cookieUtils.ts`
+## ধাপ ৫: Cookie Utils — `cookieConfig.ts` + `src/lib/cookieUtils.ts`
 
-এর কাজ **শুধু cookie get / set / delete**। Token নিয়ে কিছু জানে না।
+> 🔄 Update: আগে cookie-র নাম, option আর session-এর মেয়াদ সব `cookieUtils.ts`-এর ভিতরে ছিল। এখন এগুলো আলাদা **`cookieConfig.ts`**-এ সরানো হয়েছে, আর `jwt.decode`-এর অংশ **`jwtUtils.ts`**-এ।
+
+**কেন ভাগ করা হলো?** পরের নোটের `proxy.ts`-এরও cookie-র নাম, option আর token-এর মেয়াদ লাগবে। কিন্তু `cookieUtils.ts`-এ `next/headers`-এর `cookies()` আর `server-only` আছে — এগুলো server action-এর জন্য। Proxy-তে cookie বসানো হয় `NextResponse`-এর উপর। তাই যে অংশ দুই জায়গাতেই লাগে (নাম, option, মেয়াদ), সেটা আলাদা file-এ রাখা হয়েছে যাতে দুজনেই import করতে পারে, আর একই option দুই জায়গায় দুবার লিখতে না হয়।
+
+| File | কী আছে | `server-only`? | কে ব্যবহার করে |
+|---|---|---|---|
+| `lib/cookieConfig.ts` | `AUTH_COOKIES`, `AuthCookieName`, `SESSION_TOKEN_MAX_AGE`, `getAuthCookieOptions` | ❌ (শুধু constant) | `cookieUtils`, `tokenUtils`, `proxy.ts` |
+| `lib/jwtUtils.ts` | `getTokenSecondsRemaining` (পরে `verifyAccessToken`) | ❌ | `tokenUtils`, `proxy.ts` |
+| `lib/cookieUtils.ts` | cookie get / set / delete (`cookies()` দিয়ে) | ✅ | server action |
+| `lib/tokenUtils.ts` | token-এর মেয়াদ দেখা + ৩টা cookie বসানো | ✅ | server action |
+
+### (ক) `src/lib/cookieConfig.ts`
+
+> ✏️ এই file-টা নোটে ছিল না — project থেকে নেওয়া হয়েছে।
 
 ```ts
-import "server-only";
-import { cookies } from "next/headers";
-
 export const AUTH_COOKIES = {
 	accessToken: "accessToken",
 	refreshToken: "refreshToken",
@@ -164,18 +176,34 @@ export const AUTH_COOKIES = {
 
 export type AuthCookieName = (typeof AUTH_COOKIES)[keyof typeof AUTH_COOKIES];
 
-const isProduction = process.env.NODE_ENV === "production";
+// backend-এর BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN (604800 = 7 দিন)-এর সাথে sync রাখো
+export const SESSION_TOKEN_MAX_AGE = 7 * 24 * 60 * 60;
+
+export const getAuthCookieOptions = (maxAgeInSeconds: number) => ({
+	httpOnly: true, // JS দিয়ে পড়া যাবে না → XSS হলেও token চুরি হবে না
+	secure: process.env.NODE_ENV === "production", // Safari localhost-এ secure cookie রাখে না
+	sameSite: "lax" as const, // CSRF থেকে সুরক্ষা
+	path: "/",
+	maxAge: maxAgeInSeconds,
+});
+```
+
+- `getAuthCookieOptions` একটা **function**, কারণ `maxAge` প্রতিটা cookie-র জন্য আলাদা (token-এর নিজের মেয়াদ)।
+- `sameSite: "lax" as const` → `as const` না দিলে TypeScript এটাকে সাধারণ `string` ধরে, তখন `cookieStore.set()`-এ type error আসে (ওটা চায় `"lax" | "strict" | "none"`)।
+
+### (খ) `src/lib/cookieUtils.ts`
+
+এর কাজ **শুধু cookie get / set / delete**। Token নিয়ে কিছু জানে না।
+
+```ts
+// src/lib/cookieUtils.ts
+import { cookies } from "next/headers";
+import "server-only";
+import { AUTH_COOKIES, type AuthCookieName, getAuthCookieOptions } from "./cookieConfig";
 
 export const setCookie = async (name: AuthCookieName, value: string, maxAgeInSeconds: number) => {
 	const cookieStore = await cookies();
-
-	cookieStore.set(name, value, {
-		httpOnly: true, // JavaScript দিয়ে পড়া যাবে না, তাই XSS হলেও token চুরি করা যাবে না
-		secure: isProduction, // Safari localhost-এ secure cookie রাখে না
-		sameSite: "lax", // CSRF থেকে সুরক্ষা
-		path: "/",
-		maxAge: maxAgeInSeconds,
-	});
+	cookieStore.set(name, value, getAuthCookieOptions(maxAgeInSeconds));
 };
 
 export const getCookie = async (name: AuthCookieName) => {
@@ -197,12 +225,12 @@ export const clearAuthCookies = async () => {
 - `AuthCookieName` = `"accessToken" | "refreshToken" | "better-auth.session_token"`।
 - লাভ: `setCookie("acessToken", ...)` (typo) লিখলে **TypeScript error**। Teacher-এর code-এ `name: string`, তাই typo ধরা পড়ত না — cookie ভুল নামে বসে যেত।
 
-### Cookie option গুলো
+### Cookie option গুলো (`getAuthCookieOptions`)
 
 | Option | মানে |
 |---|---|
 | `httpOnly: true` | browser-এর JavaScript (`document.cookie`) পড়তে পারবে না → XSS হলেও token চুরি হবে না |
-| `secure: isProduction` | শুধু HTTPS-এ পাঠাবে। Local-এ `false` কারণ localhost HTTP, আর Safari সেখানে secure cookie রাখে না |
+| `secure: process.env.NODE_ENV === "production"` | শুধু HTTPS-এ পাঠাবে। Local-এ `false` কারণ localhost HTTP, আর Safari সেখানে secure cookie রাখে না |
 | `sameSite: "lax"` | অন্য সাইট থেকে আসা POST request-এ cookie যাবে না → CSRF থেকে সুরক্ষা |
 | `path: "/"` | পুরো সাইটে cookie পাওয়া যাবে |
 | `maxAge` | কত সেকেন্ড পর browser নিজেই cookie মুছবে |
@@ -212,20 +240,19 @@ export const clearAuthCookies = async () => {
 
 ---
 
-## ধাপ ৬: Token Utils — `src/lib/tokenUtils.ts`
+## ধাপ ৬: Token Utils — `jwtUtils.ts` + `src/lib/tokenUtils.ts`
 
 এর কাজ: token-এর মেয়াদ দেখা, তারপর `cookieUtils`-এর `setCookie` দিয়ে cookie বসানো।
 
+### (গ) `src/lib/jwtUtils.ts` — `getTokenSecondsRemaining`
+
+> ✏️ এই file-টা নোটে ছিল না। Login-এর জন্য শুধু `getTokenSecondsRemaining` লাগে, তাই এখানে শুধু সেটুকু। `verifyAccessToken` (`ACCESS_TOKEN_SECRET` দিয়ে) আর `IAccessTokenPayload` এই file-এই যোগ হবে `proxy.ts`-এর নোটে।
+
 ```ts
-import "server-only";
 import jwt from "jsonwebtoken";
-import { AUTH_COOKIES, setCookie } from "./cookieUtils";
 
-// backend-এর BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN (604800 = 7 দিন)-এর সাথে sync রাখো
-const SESSION_TOKEN_MAX_AGE = 7 * 24 * 60 * 60;
-
+// decode শুধু payload পড়ে, signature verify করে না। এখানে শুধু exp জানা দরকার।
 export const getTokenSecondsRemaining = (token: string): number => {
-	// decode শুধু payload পড়ে, signature verify করে না। এখানে শুধু exp জানা দরকার।
 	const payload = jwt.decode(token);
 
 	if (!payload || typeof payload === "string" || typeof payload.exp !== "number") {
@@ -234,6 +261,18 @@ export const getTokenSecondsRemaining = (token: string): number => {
 
 	return Math.max(payload.exp - Math.floor(Date.now() / 1000), 0);
 };
+```
+
+### (ঘ) `src/lib/tokenUtils.ts`
+
+```ts
+// src/lib/tokenUtils.ts
+import "server-only";
+import { AUTH_COOKIES, SESSION_TOKEN_MAX_AGE } from "./cookieConfig";
+import { setCookie } from "./cookieUtils";
+import { getTokenSecondsRemaining } from "./jwtUtils";
+
+export { getTokenSecondsRemaining };
 
 export const isTokenExpired = (token: string) => getTokenSecondsRemaining(token) === 0;
 
@@ -263,6 +302,9 @@ export const setAuthCookies = async ({ accessToken, refreshToken, sessionToken }
 	]);
 };
 ```
+
+- `export { getTokenSecondsRemaining };` → আগে যারা `@/lib/tokenUtils` থেকে import করত, তাদের import বদলাতে হবে না (re-export)।
+- `SESSION_TOKEN_MAX_AGE` এখন `cookieConfig.ts` থেকে আসে।
 
 ### `getTokenSecondsRemaining` — ভেঙে বোঝা
 
@@ -832,7 +874,8 @@ Page নিজে server component, শুধু form বসায়। `async`
 |---|---|---|---|
 | utils file-এর উপরে | `"use server"` | `import "server-only"` | `getCookie` public endpoint হয়ে যেত |
 | Cookie name | `string` | `AuthCookieName` union | typo ধরা পড়ে |
-| `secure` | সবসময় `true` | `isProduction` | Safari localhost |
+| Cookie config | প্রতিটা file-এ আলাদা | `cookieConfig.ts`-এ একবার | `proxy.ts`-ও একই option ব্যবহার করে |
+| `secure` | সবসময় `true` | production-এ শুধু `true` | Safari localhost |
 | Token → cookie | `setTokenInCookies` ৩ বার, fallback ১ দিন | `setAuthCookies` একবারে, ভাঙা token হলে throw | ভুল token বসে না |
 | Token helper | async (`"use server"`-এর নিয়ম) | sync | `server-only`-এ নিয়ম নেই |
 | Route config | ৪টা variable + if chain | array + loop | যোগ করা সহজ |
@@ -864,7 +907,7 @@ Page নিজে server component, শুধু form বসায়। `async`
    ```ts
    if (axios.isAxiosError(error) && error.response?.data?.code === "EMAIL_NOT_VERIFIED") { ... }
    ```
-2. **`SESSION_TOKEN_MAX_AGE` backend-এর সাথে sync** — backend-এ session ৭ দিন না হলে এখানেও বদলাতে হবে, নাহলে cookie থাকবে কিন্তু session শেষ (বা উল্টো)। Comment-এ লেখা আছে, শুধু মনে রাখো।
+2. **`SESSION_TOKEN_MAX_AGE` (`cookieConfig.ts`) backend-এর সাথে sync** — backend-এ session ৭ দিন না হলে এখানেও বদলাতে হবে, নাহলে cookie থাকবে কিন্তু session শেষ (বা উল্টো)। Comment-এ লেখা আছে, শুধু মনে রাখো।
 
 ### 🔵 পরে কাজে লাগবে / জেনে রাখো
 3. **`authUtils.ts`-এ `server-only` দেওয়া হয়নি — এটা ঠিক আছে।** এতে কোনো secret বা cookie নেই, আর পরে `proxy.ts` এবং হয়তো client component (যেমন sidebar-এ role অনুযায়ী menu) এটা ব্যবহার করবে।

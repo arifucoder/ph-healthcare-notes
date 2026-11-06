@@ -24,7 +24,6 @@ Access token দিয়ে যেকোনো protected route-এ ঢোকা
 > ```ts
 > import { envVars } from "@/app/config/env";
 > import { jwtUtils } from "@/app/utils/jwt";
-> import type { JwtPayload } from "jsonwebtoken";
 > ```
 
 ```ts
@@ -58,19 +57,8 @@ const getNewToken = async (refreshToken: string, sessionToken: string) => {
 		throw new AppError(httpStatus.FORBIDDEN, "User is blocked");
 	}
 
-	// ধাপ ৫: fresh data দিয়ে নতুন token
-	const jwtPayload: JwtPayload = {
-		userId: user.id,
-		role: user.role,
-		name: user.name,
-		email: user.email,
-		status: user.status,
-		isDeleted: user.isDeleted,
-		emailVerified: user.emailVerified,
-	};
-
-	const newAccessToken = tokenUtils.getAccessToken(jwtPayload);
-	const newRefreshToken = tokenUtils.getRefreshToken(jwtPayload);
+	// ধাপ ৫: fresh data দিয়ে নতুন token (payload একটাই জায়গায় বানানো হয়)
+	const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateAuthTokens(user);
 
 	// ধাপ ৬: session-এর মেয়াদ বাড়ানো (.env-এ seconds → ms)
 	const sessionExpiresInMs = Number(envVars.BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN) * 1000;
@@ -89,6 +77,8 @@ const getNewToken = async (refreshToken: string, sessionToken: string) => {
 	};
 };
 ```
+
+> 🔄 Update: ধাপ ৫-এ হাতে লেখা `jwtPayload` সরিয়ে `generateAuthTokens(user)` ব্যবহার করা হয়েছে (recommendation ২) — পুরো file **note 41**-এ।
 
 > ✏️ export object-এ যোগ: `export const AuthService = { registerPatient, loginUser, getMe, getNewToken };`
 
@@ -235,7 +225,7 @@ Send করার পর response-এর **Cookies** tab-এ ৩টা cookie �
    ```
    (তখন `token.ts`-এর `ACCESS_TOKEN_MAX_AGE`-ও `15 * 60 * 1000` করতে হবে — note 13-এর recommendation ৪ দেখো।)
 
-2. **JWT payload দুই জায়গায় হাতে লেখা** — note 13-এর `generateAuthTokens`-এ আর এখানে একই ৭টা field। একটায় field যোগ করলে আরেকটায় ভুলে গেলে token-এর shape আলাদা হবে। Prisma-র `User` নিয়ে একটা function বানাও:
+2. ✅ (Done — note 41) **JWT payload দুই জায়গায় হাতে লেখা** — note 13-এর `generateAuthTokens`-এ আর এখানে একই ৭টা field। একটায় field যোগ করলে আরেকটায় ভুলে গেলে token-এর shape আলাদা হবে। Prisma-র `User` নিয়ে একটা function বানাও:
    ```ts
    import type { User } from "@/generated/prisma/client";
 

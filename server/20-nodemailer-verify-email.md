@@ -332,7 +332,10 @@ const verifyEmail = catchAsync(async (req: Request, res: Response) => {
 
 ```ts
 // JWT বানাতে শুধু এই field-গুলো লাগে, তাই Prisma user-ও পাঠানো যাবে
-type TTokenUser = Pick<TAuthUser, "id" | "role" | "name" | "email" | "status" | "isDeleted" | "emailVerified">;
+type TTokenUser = Pick<
+	TAuthUser,
+	"id" | "role" | "name" | "email" | "status" | "isDeleted" | "emailVerified" | "needPasswordChange"
+>;
 
 // ✅ parameter type TAuthUser → TTokenUser (Better Auth user আর Prisma user দুটোই চলবে)
 const generateAuthTokens = (user: TTokenUser) => {
@@ -344,6 +347,7 @@ const generateAuthTokens = (user: TTokenUser) => {
 		status: user.status,
 		isDeleted: user.isDeleted,
 		emailVerified: user.emailVerified,
+		needPasswordChange: user.needPasswordChange, // 🔄 পরে যোগ হয়েছে (note 41)
 	};
 
 	return {

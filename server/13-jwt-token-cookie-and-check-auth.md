@@ -546,6 +546,8 @@ export const AuthService = {
 ```
 
 - `generateAuthTokens` → register আর login দুই জায়গায় একই payload দিয়ে token, তাই আলাদা function।
+
+> 🔄 Update: পরে `generateAuthTokens`-এ `TTokenUser` আর `needPasswordChange` যোগ হয়েছে — final version **note 41**-এ।
 - `loginUser`-এ blocked/deleted check **`signInEmail`-এর আগে**, যাতে ওদের জন্য DB-তে session-ই তৈরি না হয়।
 
 ## ধাপ ১০: `auth.controller.ts` — cookie set ও response

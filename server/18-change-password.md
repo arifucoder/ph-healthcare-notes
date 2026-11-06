@@ -90,7 +90,8 @@ const changePassword = async (payload: IChangePasswordPayload, sessionToken: str
 		});
 	}
 
-	const { accessToken, refreshToken } = generateAuthTokens(session.user);
+	// password বদলানো শেষ, তাই নতুন token-এ needPasswordChange: false
+	const { accessToken, refreshToken } = generateAuthTokens({ ...session.user, needPasswordChange: false });
 
 	return {
 		...result,
@@ -104,6 +105,7 @@ const changePassword = async (payload: IChangePasswordPayload, sessionToken: str
 
 - `revokeOtherSessions: true` → password বদলালে অন্য সব device থেকে logout (কেউ password চুরি করে থাকলে সে-ও বের হয়ে যায়)।
 - `needPasswordChange` → admin/doctor-কে বানানোর সময় `true` ছিল (note 10, 14), প্রথমবার password বদলালে `false`।
+- 🔄 Update: `session.user` হলো DB update-এর আগের data (তখনো `true`), তাই token বানানোর সময় `needPasswordChange: false` override করা হয় — নাহলে frontend আবার `/change-password`-এ পাঠাত। বিস্তারিত **note 41**।
 
 ## ধাপ ৪: `auth.controller.ts`
 

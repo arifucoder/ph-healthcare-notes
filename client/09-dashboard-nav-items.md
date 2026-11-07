@@ -281,9 +281,9 @@ export const getNavItemsByRole = (role: UserRole): NavSection[] => [
 ---
 
 ## 🔜 পরে যা যোগ হবে
-- [ ] Dashboard layout (Server Component): cookie থেকে access token → `verifyAccessToken` → `role` → `getNavItemsByRole(role)`
-- [ ] Sidebar (Client Component, shadcn `sidebar`): `usePathname()` দিয়ে active link, `getIconComponent(item.icon)` দিয়ে icon
-- [ ] Mobile-এ sidebar (sheet/drawer)
+- [x] Dashboard layout (Server Component) — note 10: cookie থেকে access token → `verifyAccessToken` → `role` → `getNavItemsByRole(role)`
+- [x] Sidebar (note 10 — shadcn `sidebar` না, নিজে বানানো + mobile-এ `sheet`): `usePathname()` দিয়ে active link, `getIconComponent(item.icon)` দিয়ে icon
+- [x] Mobile-এ sidebar (sheet) — note 10
 - [ ] Menu-র প্রতিটা page (এখন বেশিরভাগ page নেই → 404)
 
 ---
@@ -293,7 +293,7 @@ export const getNavItemsByRole = (role: UserRole): NavSection[] => [
 
 ### 🟡 ভালো practice
 
-1. **Active link check-এ `"/dashboard"` সাবধানে** — Sidebar-এ "এই link active কিনা" দেখতে শুধু `pathname.startsWith(href)` করলে patient-এর `/dashboard/my-appointments` খুললে **"Dashboard" আর "My Appointments" দুটোই** active দেখাবে (আর `"/"` (Home) সব page-এ active হবে)। Dashboard আর Home-এর জন্য exact match:
+1. ✅ (Done — note 10-এর `DashboardNav`-এর `isActiveLink`) **Active link check-এ `"/dashboard"` সাবধানে** — Sidebar-এ "এই link active কিনা" দেখতে শুধু `pathname.startsWith(href)` করলে patient-এর `/dashboard/my-appointments` খুললে **"Dashboard" আর "My Appointments" দুটোই** active দেখাবে (আর `"/"` (Home) সব page-এ active হবে)। Dashboard আর Home-এর জন্য exact match:
    ```ts
    const isActive = (pathname: string, href: string, isRoot: boolean) =>
    	isRoot ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);

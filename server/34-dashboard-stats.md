@@ -63,14 +63,20 @@ interface IMonthlyAppointmentCount {
 }
 
 // শেষ ১২ মাসের মাস-ভিত্তিক appointment সংখ্যা (bar chart)
+// generate_series: ১২টা মাসই আসবে; যে মাসে appointment নেই সেখানে count 0
 const getMonthlyAppointmentCount = () => {
 	return prisma.$queryRaw<IMonthlyAppointmentCount[]>`
-		SELECT DATE_TRUNC('month', "createdAt") AS month,
-			CAST(COUNT(*) AS INTEGER) AS count
-		FROM "appointments"
-		WHERE "createdAt" >= DATE_TRUNC('month', NOW()) - INTERVAL '11 months'
-		GROUP BY month
-		ORDER BY month ASC;
+		SELECT months.month,
+			CAST(COUNT(a."id") AS INTEGER) AS count
+		FROM generate_series(
+			DATE_TRUNC('month', NOW()) - INTERVAL '11 months',
+			DATE_TRUNC('month', NOW()),
+			INTERVAL '1 month'
+		) AS months(month)
+		LEFT JOIN "appointments" a
+			ON DATE_TRUNC('month', a."createdAt") = months.month
+		GROUP BY months.month
+		ORDER BY months.month ASC;
 	`;
 };
 

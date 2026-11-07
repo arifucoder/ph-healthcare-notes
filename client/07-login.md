@@ -894,7 +894,7 @@ Page নিজে server component, শুধু form বসায়। `async`
 - [ ] `proxy.ts` — login না করলে protected route-এ ঢুকতে না দেওয়া, ভুল role হলে নিজের dashboard-এ পাঠানো (`getRouteOwner`, `canAccessRoute`, `isTokenExpired` এখানে লাগবে)
 - [ ] Access token শেষ হওয়ার আগে refresh token দিয়ে নতুন token (`isTokenExpiringSoon`)
 - [ ] `httpClient`-এ cookie থেকে token পড়ে backend-এ পাঠানো (`getCookie`)
-- [ ] Logout (`clearAuthCookies`)
+- [x] Logout (`clearAuthCookies`) — note 11
 - [ ] `getUserInfo` (`/auth/me`)
 
 ---

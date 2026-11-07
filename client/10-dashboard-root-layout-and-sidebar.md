@@ -561,7 +561,7 @@ layout.tsx (Server)  ── getSessionUser() ──► user, navItems, dashboard
 ---
 
 ## 🔜 পরে যা যোগ হবে
-- [ ] Navbar-এ user dropdown: My Profile, Change Password, **Logout** (`clearAuthCookies`)
+- [x] Navbar-এ user dropdown: My Profile, Change Password, **Logout** (`clearAuthCookies`) — note 11
 - [ ] Menu-র প্রতিটা page
 - [ ] Dashboard-এর `loading.tsx` (skeleton) — page load-এর সময় sidebar থাকবে, শুধু main-এ loading
 - [ ] User-এর ছবি থাকলে `AvatarImage`
@@ -573,7 +573,7 @@ layout.tsx (Server)  ── getSessionUser() ──► user, navItems, dashboard
 
 ### 🟡 ভালো practice
 
-1. **Desktop-এ user info দুবার দেখা যায়** — `md`-এর উপরে sidebar-এর নিচে আর navbar-এর ডানে, দুই জায়গাতেই একই avatar + নাম। পরে navbar-এরটা logout dropdown হবে, তাহলে ঠিক আছে। নাহলে sidebar-এরটা রেখে navbar-এরটা শুধু mobile-এ দেখাতে পারো:
+1. ✅ (Done — note 11: navbar-এ এখন `UserDropdown`) **Desktop-এ user info দুবার দেখা যায়** — `md`-এর উপরে sidebar-এর নিচে আর navbar-এর ডানে, দুই জায়গাতেই একই avatar + নাম। পরে navbar-এরটা logout dropdown হবে, তাহলে ঠিক আছে। নাহলে sidebar-এরটা রেখে navbar-এরটা শুধু mobile-এ দেখাতে পারো:
    ```tsx
    <div className="ml-auto md:hidden">
    	<DashboardUserInfo user={user} />
@@ -586,6 +586,6 @@ layout.tsx (Server)  ── getSessionUser() ──► user, navItems, dashboard
 
 3. **`cacheComponents: true` আর cookie** — এই setting-এ `cookies()` (dynamic data) একটা `<Suspense>`-এর ভিতরে থাকতে হয়, নাহলে Next error দেয়। এখন `src/app/loading.tsx` আছে, যেটা নিজেই একটা Suspense boundary, তাই dashboard layout তার ভিতরে পড়ে — সমস্যা নেই। ওই `loading.tsx` মুছে দিলে এই error আসতে পারে (untested), তখন dashboard-এ নিজের `loading.tsx` রাখো।
 
-4. **`formatRole`-এ `replace` শুধু প্রথম `_` বদলায়** — এখনকার role-গুলোতে একটাই `_` (`SUPER_ADMIN`), তাই ঠিক আছে। কখনো `"CLINIC_SUPER_ADMIN"`-এর মতো role এলে `replaceAll("_", " ")` লাগবে।
+4. ✅ (Done — note 11: `authUtils.ts`-এ `replaceAll`) **`formatRole`-এ `replace` শুধু প্রথম `_` বদলায়** — এখনকার role-গুলোতে একটাই `_` (`SUPER_ADMIN`), তাই ঠিক আছে। কখনো `"CLINIC_SUPER_ADMIN"`-এর মতো role এলে `replaceAll("_", " ")` লাগবে।
 
 5. **নাম token থেকে আসে** — user profile-এ নাম বদলালে sidebar-এ পুরনো নাম দেখাবে, যতক্ষণ না token refresh হয় (backend নতুন token-এ DB থেকে নতুন নাম দেয়)। Profile update action-এ নতুন token নিয়ে `setAuthCookies` করলে সাথে সাথে বদলাবে।

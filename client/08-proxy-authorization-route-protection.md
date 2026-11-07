@@ -633,7 +633,7 @@ export async function proxy(request: NextRequest) {
 ## 🔜 পরে যা যোগ হবে
 - [ ] Change password page + server action (নতুন token দিয়ে `setAuthCookies`, নাহলে proxy `/change-password`-এ আটকে রাখবে)
 - [ ] Verify email / forgot / reset password page-এর action
-- [ ] Logout action (`clearAuthCookies` + backend `/auth/logout`)
+- [x] Logout action (`clearAuthCookies` + backend `/auth/logout`) — note 11
 - [ ] `httpClient`-এ cookie থেকে token পড়ে backend-এ পাঠানো (`getCookie`)
 - [ ] `getUserInfo` (`/auth/me`) দিয়ে dashboard-এ user-এর তথ্য
 - [ ] Role অনুযায়ী sidebar menu (`authUtils` থেকে)

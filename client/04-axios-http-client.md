@@ -76,6 +76,8 @@ export interface ApiErrorResponse {
 
 ## ধাপ ৪: httpClient — `src/lib/axios/httpClient.ts`
 
+> 🔄 Update: পরে `httpClient` browser-এর auth cookie backend-এ পাঠায় আর `server-only` হয়েছে — নতুন পুরো file **note 15**-এ।
+
 ```ts
 import type { ApiResponse } from "@/types/api.types";
 import axios, { type AxiosInstance, type Method } from "axios";

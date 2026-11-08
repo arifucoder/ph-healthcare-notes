@@ -572,6 +572,8 @@ export async function loginAction(payload: unknown, redirectPath?: unknown): Pro
 
 ### `getErrorMessage` — user-কে কোন message দেখাব
 
+> 🔄 Update: পরে এটা সব action-এর জন্য shared `src/lib/getActionErrorMessage.ts` হয়েছে — **note 18**-এর ধাপ ৯।
+
 | অবস্থা | কী দেখাবে |
 |---|---|
 | Server-এ পৌঁছায়নি, timeout (`ECONNABORTED`) | "The server took too long..." |

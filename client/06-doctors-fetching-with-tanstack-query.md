@@ -250,6 +250,8 @@ export default function ConsultationPage({ searchParams }: PageProps<"/consultat
 
 ### ভেঙে বোঝা
 
+> 🔄 Update: পরে এটা সব page-এর জন্য reusable `src/lib/buildQueryString.ts` হয়েছে — **note 16**-এর ধাপ ২।
+
 **`buildQueryString`** — URL-এর `?page=2&searchTerm=ali` থেকে query string বানায়:
 
 | কাজ | কেন |

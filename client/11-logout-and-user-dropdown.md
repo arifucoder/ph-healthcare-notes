@@ -77,7 +77,7 @@ export async function logoutAction(): Promise<void> {
 | ৩ | `headers: { Cookie: ... }` | Server Action server-এ চলে, browser না — তাই browser-এর cookie নিজে থেকে যায় না। হাতে `Cookie` header বানিয়ে পাঠাতে হয় (proxy-র refresh call-এর মতো, note 08) |
 | ৪ | `httpClient.post(url, undefined, {...})` | body নেই → দ্বিতীয় argument `undefined`, তৃতীয়টায় options |
 | ৫ | খালি `catch {}` | Backend down থাকলেও user-কে logout করাতেই হবে। `httpClient` নিজেই error log করে (note 04), তাই এখানে আবার log লাগে না |
-| ৬ | `clearAuthCookies()` | note 07-এর function → ৩টা cookie একসাথে মোছে |
+| ৬ | `clearAuthCookies()` | note 07-এর function → ৩টা cookie একসাথে মোছে (🔄 note 28: এখন cookie-র `domain` দিয়েই মোছে, নইলে production-এ logout কাজ করত না) |
 | ৭ | `redirect("/login")` | try/catch-এর **বাইরে**, কারণ `redirect()` ভিতরে একটা বিশেষ error throw করে — catch-এর ভিতরে থাকলে ধরা পড়ে যেত (note 07-এর login action-এও একই নিয়ম) |
 
 ### Backend-এ মোছা কেন জরুরি, শুধু cookie মুছলে হয় না?

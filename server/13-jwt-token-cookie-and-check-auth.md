@@ -154,6 +154,9 @@ const baseCookieOptions: CookieOptions = {
     // ⚠️ "none" দিলে secure: true লাগবেই, নইলে browser cookie ফেলে দেয় (নিচে বিস্তারিত)
     sameSite: isProduction ? "none" : "lax",
     path: "/",
+    // ".arifuddincoder.site" দিলে phdoc আর phdocapi দুই subdomain-ই cookie পায়
+    // local-এ undefined থাকে, তখন cookie শুধু localhost-এর জন্য বসে
+    ...(envVars.COOKIE_DOMAIN && { domain: envVars.COOKIE_DOMAIN }),
 };
 
 // ---------- Token তৈরি ----------
@@ -207,6 +210,8 @@ export const tokenUtils = {
     clearAuthCookies,
 };
 ```
+
+> 🔄 Update (deploy, [client note 28](../client/28-vps-deploy-and-cookie-domain.md)): production-এ frontend (`phdoc`) আর backend (`phdocapi`) আলাদা subdomain। Google login-এর cookie backend set করে, domain না দিলে সেটা শুধু `phdocapi`-এর থাকে, frontend দেখে না। তাই `domain: envVars.COOKIE_DOMAIN` (শুধু production-এর `.env`-এ)।
 
 > ✏️ সংশোধন ১ — `sameSite`: নোটে ছিল সবসময় `sameSite: "none"`, আর `isProduction ? "none" : "lax"` লাইনটা comment করা ছিল। Comment করা লাইনটাই ঠিক। কেন, সেটা নিচের "🍪 `sameSite` আর `secure`" অংশে বিস্তারিত।
 >
@@ -344,7 +349,7 @@ export const CookieUtils = {
 };
 ```
 
-- `clearCookie`-এ set করার সময়ের মতো একই `path`/`sameSite`/`secure` না দিলে browser cookie মুছবে না, তাই `baseCookieOptions` দুই জায়গাতেই ব্যবহার হচ্ছে।
+- `clearCookie`-এ set করার সময়ের মতো একই `path`/`sameSite`/`secure` না দিলে browser cookie মুছবে না, তাই `baseCookieOptions` দুই জায়গাতেই ব্যবহার হচ্ছে। `domain`-ও একই নিয়মে — এখন `baseCookieOptions`-এ থাকায় clear-এও নিজে থেকে যায়।
 
 ## ধাপ ৭: Better Auth session-এর মেয়াদ
 

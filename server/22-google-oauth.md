@@ -417,6 +417,25 @@ Google consent screen আর redirect লাগে, তাই browser-এ test �
 
 ---
 
+## 🌐 Production-এ সমস্যা: Google login-এর পর frontend logged-in দেখায় না
+
+> Deploy-এর পর ধরা পড়েছে। পুরো বিবরণ: [client note 28](../client/28-vps-deploy-and-cookie-domain.md)।
+
+| | Local | Production |
+|---|---|---|
+| frontend | `localhost:3000` | `phdoc.arifuddincoder.site` |
+| backend | `localhost:5000` | `phdocapi.arifuddincoder.site` |
+| Google callback-এর cookie কার | `localhost` (port মানে না → frontend-ও পায়) ✅ | শুধু `phdocapi` ❌ |
+
+- Email login-এ সমস্যা হয়নি কারণ সেখানে Next.js server action নিজে cookie বসায় (`phdoc`-এ)। কিন্তু Google-এ cookie বসায় backend-এর `googleLoginSuccess` → তারপর `res.redirect(FRONTEND_URL...)`।
+- **সমাধান:** `token.ts`-এর `baseCookieOptions`-এ `domain: envVars.COOKIE_DOMAIN` (`.arifuddincoder.site`) — note 13-এ update করা আছে। শুধু production-এর `.env`-এ:
+  ```dotenv
+  COOKIE_DOMAIN=.arifuddincoder.site
+  ```
+- এরপর frontend-এর logout-ও domain দিয়ে মুছতে হয়েছে (client note 07/08/11/28)।
+
+---
+
 ## 🤖 Claude Recommendation
 
 > এগুলো শুধু suggestion — উপরের code বদলানো হয়নি।
@@ -437,7 +456,7 @@ Google consent screen আর redirect লাগে, তাই browser-এ test �
 
 3. **একই email আগে থেকে থাকলে।** Email/password দিয়ে বানানো account-এর email দিয়ে Google login করলে Better Auth নতুন user বানায় না, পুরনো user-এর সাথে Google account link করে (Google email verified হলে)। তখন `mapProfileToUser` চলে না — তাই doctor/admin Google দিয়ে ঢুকলে তার আসল role-ই থাকে।
 4. **Production-এ।** Google Console-এ production-এর backend URL দিয়ে আলাদা origin আর redirect URI যোগ করতে হবে, আর consent screen "Testing" থেকে "In production"-এ publish করতে হবে।
-5. **Frontend আর backend আলাদা domain হলে।** Cookie এখন `localhost:5000`-এ set হয়, আর `localhost:3000` একই host বলে frontend-ও পায়। Production-এ আলাদা domain হলে এই কারণেই `sameSite: "none"` + `secure: true` লাগে (এখন সেটাই করা আছে)।
+5. ✅ (Done — client note 28-এ `COOKIE_DOMAIN`) **Frontend আর backend আলাদা domain হলে।** Cookie এখন `localhost:5000`-এ set হয়, আর `localhost:3000` একই host বলে frontend-ও পায়। Production-এ আলাদা domain হলে এই কারণেই `sameSite: "none"` + `secure: true` লাগে (এখন সেটাই করা আছে)।
 
 ## 🔜 পরে যা যোগ হবে
 

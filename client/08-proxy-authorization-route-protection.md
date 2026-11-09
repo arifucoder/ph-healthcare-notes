@@ -80,6 +80,8 @@ ACCESS_TOKEN_SECRET=your_backend_access_secret
 
 ## ধাপ ২: নতুন file `src/lib/cookieConfig.ts`
 
+> 🔄 Update (note 28 — deploy): production-এ Google login-এর cookie frontend পাচ্ছিল না, তাই cookie-তে `domain` (`COOKIE_DOMAIN`) যোগ হয়েছে। `cookieScope` (path + domain) set আর delete দুই জায়গায় একই, আর মোছার জন্য নতুন `getAuthCookieDeleteOptions`। বিস্তারিত: [note 28](./28-vps-deploy-and-cookie-domain.md)।
+
 Cookie-র নাম, option আর session-এর মেয়াদ এখন এক জায়গায়। পুরো code আর ব্যাখ্যা **note 07-এর ধাপ ৫ (ক)**-এ আছে।
 
 **কেন আলাদা file?** `cookieUtils.ts`-এ `next/headers`-এর `cookies()` + `server-only` আছে — ওগুলো Server Action-এর জন্য। Proxy-তে cookie পড়া/বসানো হয় `request.cookies` / `response.cookies` দিয়ে। কিন্তু **নাম আর option দুই জায়গাতেই একই হতে হবে** (নাহলে proxy এক option-এ বসাবে, action আরেক option-এ — দুটো আলাদা cookie হয়ে যাবে)। তাই shared অংশ আলাদা file-এ।
@@ -96,12 +98,29 @@ export type AuthCookieName = (typeof AUTH_COOKIES)[keyof typeof AUTH_COOKIES];
 // backend-এর BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN (604800 = 7 দিন)-এর সাথে sync রাখো
 export const SESSION_TOKEN_MAX_AGE = 7 * 24 * 60 * 60;
 
+// production-এ ".arifuddincoder.site" → phdoc আর phdocapi দুই subdomain-ই cookie পায়
+// local-এ নেই (undefined) → cookie শুধু localhost-এর জন্য
+// NEXT_PUBLIC_ দেবে না: এটা শুধু server (proxy, server action)-এ লাগে
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN;
+
+// set আর delete দুই জায়গাতেই একই path + domain লাগে, নইলে browser অন্য cookie ভাবে
+const cookieScope = {
+	path: "/",
+	...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
+};
+
 export const getAuthCookieOptions = (maxAgeInSeconds: number) => ({
 	httpOnly: true, // JS দিয়ে পড়া যাবে না → XSS হলেও token চুরি হবে না
 	secure: process.env.NODE_ENV === "production", // Safari localhost-এ secure cookie রাখে না
 	sameSite: "lax" as const, // CSRF থেকে সুরক্ষা
-	path: "/",
 	maxAge: maxAgeInSeconds,
+	...cookieScope,
+});
+
+// cookie মোছার সময়ও ঠিক একই domain/path দিতে হয়
+export const getAuthCookieDeleteOptions = (name: AuthCookieName) => ({
+	name,
+	...cookieScope,
 });
 ```
 
@@ -213,7 +232,12 @@ jwtUtils.ts ──────┼───────────────�
 
 ```ts
 import { canAccessRoute, getDefaultDashboardRoute, getRouteOwner, isAuthRoute } from "@/lib/authUtils";
-import { AUTH_COOKIES, getAuthCookieOptions, SESSION_TOKEN_MAX_AGE } from "@/lib/cookieConfig";
+import {
+	AUTH_COOKIES,
+	getAuthCookieDeleteOptions,
+	getAuthCookieOptions,
+	SESSION_TOKEN_MAX_AGE,
+} from "@/lib/cookieConfig";
 import { getTokenSecondsRemaining, type IAccessTokenPayload, verifyAccessToken } from "@/lib/jwtUtils";
 import { type NextRequest, NextResponse } from "next/server";
 
@@ -344,7 +368,7 @@ const handleAuth = async (request: NextRequest): Promise<NextResponse> => {
 				response.cookies.set(name, value, getAuthCookieOptions(maxAge));
 			}
 		} else if (shouldClearCookies) {
-			for (const name of Object.values(AUTH_COOKIES)) response.cookies.delete(name);
+			for (const name of Object.values(AUTH_COOKIES)) response.cookies.delete(getAuthCookieDeleteOptions(name));
 		}
 		return response;
 	};
@@ -524,6 +548,8 @@ const shouldClearCookies = !user && refreshStatus !== "error" && Boolean(accessT
 3. কোনো cookie আসলেই আছে → নাহলে মোছার কিছু নেই
 
 না মুছলে প্রতিটা request-এ বাতিল refresh token দিয়ে বারবার backend call হত।
+
+> 🔄 Update (note 28): `finalize`-এ browser-এর cookie মোছা এখন `response.cookies.delete(getAuthCookieDeleteOptions(name))` — production-এ cookie `.arifuddincoder.site` domain-এ থাকে, তাই মুছতেও একই domain লাগে। `next()`-এর `request.cookies.delete(name)` বদলায়নি (ওটা শুধু এই request-এর ভেতরে, browser-এ যায় না)।
 
 ### `finalize` বনাম `next` — cookie দুই জায়গায় কেন (গুরুত্বপূর্ণ ⭐)
 

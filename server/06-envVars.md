@@ -47,6 +47,7 @@ interface EnvConfig {
 	BETTER_AUTH_SESSION_TOKEN_UPDATE_AGE: string;
 
 	FRONTEND_URL: string;
+	COOKIE_DOMAIN?: string; // শুধু production এ; local এ দরকার নেই
 
 	EMAIL_SENDER: {
 		SMTP_HOST: string;
@@ -102,6 +103,7 @@ const loadEnvVariables = (): EnvConfig => ({
 	BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN: getEnv("BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN"),
 	BETTER_AUTH_SESSION_TOKEN_UPDATE_AGE: getEnv("BETTER_AUTH_SESSION_TOKEN_UPDATE_AGE"),
 	FRONTEND_URL: getEnv("FRONTEND_URL"),
+	COOKIE_DOMAIN: process.env.COOKIE_DOMAIN,
 
 	EMAIL_SENDER: {
 		SMTP_HOST: getEnv("SMTP_HOST"),
@@ -171,6 +173,7 @@ envVars.STRIPE.STRIPE_WEBHOOK_SECRET;
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | Better Auth | [০৫](./05-better-auth-setup-and-auth-schemas.md) |
 | `ACCESS_TOKEN_*`, `REFRESH_TOKEN_*`, `BETTER_AUTH_SESSION_TOKEN_*` | JWT আর session-এর secret ও মেয়াদ | [১৩](./13-jwt-token-cookie-and-check-auth.md) |
 | `FRONTEND_URL` | CORS, email link, PDF footer | — |
+| `COOKIE_DOMAIN` (optional) | production-এ cookie-র domain (`.arifuddincoder.site`); `getEnv` না, সরাসরি `process.env` কারণ local-এ নেই | [client ২৮](../client/28-vps-deploy-and-cookie-domain.md) |
 | `EMAIL_SENDER.*` | Nodemailer SMTP | [২০](./20-nodemailer-verify-email.md) |
 | `GOOGLE_*` | Google OAuth | [২২](./22-google-oauth.md) |
 | `CLOUDINARY.*` | File upload | [২৩](./23-multer-single-image-upload.md) |

@@ -73,8 +73,9 @@ const logoutUser = catchAsync(async (req: Request, res: Response) => {
 const baseCookieOptions: CookieOptions = {
 	httpOnly: true,
 	secure: isProduction,
-	sameSite: "none",
+	sameSite: isProduction ? "none" : "lax",
 	path: "/",
+	...(envVars.COOKIE_DOMAIN && { domain: envVars.COOKIE_DOMAIN }),
 };
 
 const clearAuthCookies = (res: Response) => {
@@ -88,6 +89,8 @@ const clearAuthCookies = (res: Response) => {
 |---|---|
 | `path` / `domain` আলাদা হলে | browser অন্য cookie ভাবে → আসল cookie মুছে না |
 | `sameSite` / `secure` আলাদা হলে | cross-site এ clear header-টা browser ignore করতে পারে |
+
+> 🔄 Update: `sameSite` এখন `isProduction ? "none" : "lax"` (note 13), আর production-এ `domain` যোগ হয়েছে ([client note 28](../client/28-vps-deploy-and-cookie-domain.md))। একই `baseCookieOptions` বলে clear-এও একই domain যায় — তাই logout ঠিকমতো cookie মোছে।
 
 > `maxAge` clear করার সময় দেওয়ার দরকার নেই — `res.clearCookie` নিজেই expire করে দেয়।
 

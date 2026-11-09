@@ -165,6 +165,8 @@ pnpm add -D @types/jsonwebtoken
 
 ### (ক) `src/lib/cookieConfig.ts`
 
+> 🔄 Update (note 28 — deploy): production-এ Google login-এর cookie frontend পাচ্ছিল না, তাই cookie-তে `domain` (`COOKIE_DOMAIN`) যোগ হয়েছে। `cookieScope` (path + domain) set আর delete দুই জায়গায় একই, আর মোছার জন্য নতুন `getAuthCookieDeleteOptions`। বিস্তারিত: [note 28](./28-vps-deploy-and-cookie-domain.md)।
+
 > ✏️ এই file-টা নোটে ছিল না — project থেকে নেওয়া হয়েছে।
 
 ```ts
@@ -179,14 +181,34 @@ export type AuthCookieName = (typeof AUTH_COOKIES)[keyof typeof AUTH_COOKIES];
 // backend-এর BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN (604800 = 7 দিন)-এর সাথে sync রাখো
 export const SESSION_TOKEN_MAX_AGE = 7 * 24 * 60 * 60;
 
+// production-এ ".arifuddincoder.site" → phdoc আর phdocapi দুই subdomain-ই cookie পায়
+// local-এ নেই (undefined) → cookie শুধু localhost-এর জন্য
+// NEXT_PUBLIC_ দেবে না: এটা শুধু server (proxy, server action)-এ লাগে
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN;
+
+// set আর delete দুই জায়গাতেই একই path + domain লাগে, নইলে browser অন্য cookie ভাবে
+const cookieScope = {
+	path: "/",
+	...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
+};
+
 export const getAuthCookieOptions = (maxAgeInSeconds: number) => ({
 	httpOnly: true, // JS দিয়ে পড়া যাবে না → XSS হলেও token চুরি হবে না
 	secure: process.env.NODE_ENV === "production", // Safari localhost-এ secure cookie রাখে না
 	sameSite: "lax" as const, // CSRF থেকে সুরক্ষা
-	path: "/",
 	maxAge: maxAgeInSeconds,
+	...cookieScope,
+});
+
+// cookie মোছার সময়ও ঠিক একই domain/path দিতে হয়
+export const getAuthCookieDeleteOptions = (name: AuthCookieName) => ({
+	name,
+	...cookieScope,
 });
 ```
+
+- `COOKIE_DOMAIN` শুধু production-এর `.env`-এ (`.arifuddincoder.site`); local-এ নেই → আগের মতোই host-only cookie।
+- `...(COOKIE_DOMAIN && { domain })` → মান না থাকলে `...undefined` = কিছুই যোগ হয় না।
 
 - `getAuthCookieOptions` একটা **function**, কারণ `maxAge` প্রতিটা cookie-র জন্য আলাদা (token-এর নিজের মেয়াদ)।
 - `sameSite: "lax" as const` → `as const` না দিলে TypeScript এটাকে সাধারণ `string` ধরে, তখন `cookieStore.set()`-এ type error আসে (ওটা চায় `"lax" | "strict" | "none"`)।
@@ -199,7 +221,7 @@ export const getAuthCookieOptions = (maxAgeInSeconds: number) => ({
 // src/lib/cookieUtils.ts
 import { cookies } from "next/headers";
 import "server-only";
-import { AUTH_COOKIES, type AuthCookieName, getAuthCookieOptions } from "./cookieConfig";
+import { AUTH_COOKIES, type AuthCookieName, getAuthCookieDeleteOptions, getAuthCookieOptions } from "./cookieConfig";
 
 export const setCookie = async (name: AuthCookieName, value: string, maxAgeInSeconds: number) => {
 	const cookieStore = await cookies();
@@ -214,10 +236,12 @@ export const getCookie = async (name: AuthCookieName) => {
 export const clearAuthCookies = async () => {
 	const cookieStore = await cookies();
 	for (const name of Object.values(AUTH_COOKIES)) {
-		cookieStore.delete(name);
+		cookieStore.delete(getAuthCookieDeleteOptions(name));
 	}
 };
 ```
+
+> 🔄 Update (note 28): `delete(name)` → `delete(getAuthCookieDeleteOptions(name))`। domain দিয়ে বসানো cookie মুছতে একই domain লাগে, নইলে production-এ logout কাজ করে না।
 
 ### `AUTH_COOKIES` + `AuthCookieName` — কী হচ্ছে?
 
@@ -233,6 +257,7 @@ export const clearAuthCookies = async () => {
 | `secure: process.env.NODE_ENV === "production"` | শুধু HTTPS-এ পাঠাবে। Local-এ `false` কারণ localhost HTTP, আর Safari সেখানে secure cookie রাখে না |
 | `sameSite: "lax"` | অন্য সাইট থেকে আসা POST request-এ cookie যাবে না → CSRF থেকে সুরক্ষা |
 | `path: "/"` | পুরো সাইটে cookie পাওয়া যাবে |
+| `domain` (শুধু production) | `.arifuddincoder.site` → `phdoc` আর `phdocapi` দুই subdomain-ই একই cookie পায় (note 28) |
 | `maxAge` | কত সেকেন্ড পর browser নিজেই cookie মুছবে |
 
 - `cookies()` হলো Next.js-এর server function — **শুধু server action / route handler-এ `set`/`delete` করা যায়**, সাধারণ server component-এ শুধু পড়া যায়।

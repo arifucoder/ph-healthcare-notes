@@ -423,12 +423,13 @@ export const DoctorScheduleService = {
 import AppError from "@/app/errorHelpers/AppError";
 import type { IRequestUser } from "@/app/interfaces/requestUser.interface";
 import { catchAsync } from "@/app/shared/catchAsync";
+import { getParam } from "@/app/shared/getParam";
 import { sendResponse } from "@/app/shared/sendResponse";
 import type { Request, Response } from "express";
 import httpStatus from "http-status";
 import { DoctorScheduleService } from "./doctorSchedule.service";
 
-// req.user-এর type optional — একবার check করে নিশ্চিত (narrow) করা হয়
+// req.user optional type — একবার check করে narrow করি
 const getAuthUser = (req: Request): IRequestUser => {
 	if (!req.user) {
 		throw new AppError(httpStatus.UNAUTHORIZED, "Unauthorized access! Please log in.");
@@ -472,8 +473,10 @@ const getAllDoctorSchedules = catchAsync(async (req: Request, res: Response) => 
 });
 
 const getDoctorScheduleById = catchAsync(async (req: Request, res: Response) => {
-	const { doctorId, scheduleId } = req.params;
-	const result = await DoctorScheduleService.getDoctorScheduleById(doctorId as string, scheduleId as string);
+	const result = await DoctorScheduleService.getDoctorScheduleById(
+		getParam(req, "doctorId"),
+		getParam(req, "scheduleId"),
+	);
 
 	sendResponse(res, {
 		success: true,
@@ -495,8 +498,7 @@ const updateMyDoctorSchedule = catchAsync(async (req: Request, res: Response) =>
 });
 
 const deleteMyDoctorSchedule = catchAsync(async (req: Request, res: Response) => {
-	const { scheduleId } = req.params;
-	await DoctorScheduleService.deleteMyDoctorSchedule(scheduleId as string, getAuthUser(req));
+	await DoctorScheduleService.deleteMyDoctorSchedule(getParam(req, "scheduleId"), getAuthUser(req));
 
 	sendResponse(res, {
 		success: true,
@@ -514,6 +516,17 @@ export const DoctorScheduleController = {
 	deleteMyDoctorSchedule,
 };
 ```
+
+> 🔄 Update: `req.params.x as string`-এর বদলে এখন shared **`getParam(req, key)`** ([নোট ৩৮](./38-get-param-and-get-auth-user.md))।
+>
+> ⚠️ **Bug fix — `deleteMyDoctorSchedule`:** `getParam`-এ বদলানোর সময় project-এ লেখা হয়েছিল `getParam(req, "id")`, কিন্তু route-এ param-এর নাম **`:scheduleId`** (`/delete-my-doctor-schedule/:scheduleId`)। `req.params`-এ তখন শুধু `scheduleId` থাকে, `id` থাকে না → প্রতিবার `400 Route parameter "id" is required`, delete কখনো service পর্যন্ত যেত না। ঠিক করা হয়েছে: `getParam(req, "scheduleId")`।
+>
+> **নিয়ম:** `getParam`-এর key = route-এর `:` এর পরের নাম, হুবহু।
+
+| Route | Controller-এ |
+|---|---|
+| `/delete-my-doctor-schedule/:scheduleId` | `getParam(req, "scheduleId")` ✅ |
+| `/:doctorId/schedule/:scheduleId` | `getParam(req, "doctorId")`, `getParam(req, "scheduleId")` ✅ |
 
 - `getAuthUser` → `checkAuth` আগেই `req.user` বসায়, কিন্তু type-এ `user?` optional (`express.d.ts`)। প্রতিবার `req.user!` না লিখে একটা helper।
 

@@ -177,4 +177,6 @@ pnpm check
 
 ### 🔵 পরে কাজে লাগবে / জেনে রাখো
 
+⚠️ **Key-এর নাম route-এর সাথে হুবহু মেলাও** — `getParam(req, "id")` লিখলে কিন্তু route-এ `:scheduleId` থাকলে প্রতিবার `400` আসবে, TypeScript ধরতে পারে না (key শুধু একটা string)। এই ভুলটা `doctorSchedule.controller.ts`-এর delete-এ হয়েছিল ([নোট ২৬](./26-doctor-schedule.md))।
+
 2. **Param-এর format check নেই** — `getParam` শুধু দেখে value আছে কিনা। `id` uuid কিনা দেখে না, তাই `"abc"` দিলে DB পর্যন্ত যায় আর `P2023` → `400` আসে ([নোট ৩৬](./36-handle-prisma-error.md))। চাইলে Zod দিয়ে params-ও validate করা যায়, তবে এখনকার handler-এই কাজ চলে যাচ্ছে।

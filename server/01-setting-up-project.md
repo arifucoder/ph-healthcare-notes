@@ -33,7 +33,7 @@ coverage
 ```shell
 pnpm init
 pnpm add -D typescript @types/node tsx tsdown
-pnpm tsc --init
+pnpm exec tsc --init
 ```
 
 > ⚠️ `tsc --init` চালানোর আগে `typescript` install করতে হবে। আর `"types": ["node"]` এর জন্য `@types/node` লাগবে।

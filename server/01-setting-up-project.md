@@ -19,6 +19,7 @@ node_modules
 dist
 coverage
 .env
+!.env.example
 *.log
 .DS_Store
 ```

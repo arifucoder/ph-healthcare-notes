@@ -22,7 +22,7 @@ pnpm add @prisma/client@7 @prisma/adapter-pg pg
 ## ২. Prisma init
 
 ```shell
-pnpm prisma init --datasource-provider postgresql --output ../src/generated/prisma --skills=none --no-postinstall
+pnpm prisma init --datasource-provider postgresql --output ../src/generated/prisma --no-skills
 ```
 
 - `--output` → generated client কোথায় যাবে (`src/generated/prisma`)

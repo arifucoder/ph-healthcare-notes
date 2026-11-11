@@ -76,7 +76,7 @@ prisma/
 └── schema/
     ├── schema.prisma      # generator + datasource
     ├── specialty.prisma   # এখন বানাচ্ছি
-    └── migrations/        # migrate চালালে তৈরি হবে
+└── migrations/        # migrate চালালে তৈরি হবে   
 ```
 
 (পরে `enums.prisma`, `user.prisma`, `doctor.prisma` ইত্যাদি এখানেই যোগ হবে।)

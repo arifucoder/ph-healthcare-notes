@@ -30,6 +30,11 @@ pnpm prisma init --datasource-provider postgresql --output ../src/generated/pris
 
 এটা বানাবে: `prisma/schema.prisma`, `prisma7.config.ts`, `.env`
 
+ekhon prisma.config.ts file e datasource error dibe seita solve korar jonno tsconfig.json file er include e add korte hobe
+```
+	"include": ["prisma.config.ts"],
+```
+
 ---
 
 ## ৩. .env

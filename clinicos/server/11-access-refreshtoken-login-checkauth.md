@@ -237,7 +237,7 @@ const durationToMs = (duration: string): number => {
 };
 
 const ACCESS_TOKEN_MAX_AGE = durationToMs(envVars.ACCESS_TOKEN_EXPIRES_IN);
-const REFRESH_TOKEN_MAX_AGE = durationToMs(envVars.REFRESH_TOKEN_EXPIRES_IN);
+export const REFRESH_TOKEN_MAX_AGE = durationToMs(envVars.REFRESH_TOKEN_EXPIRES_IN);
 
 const baseCookieOptions: CookieOptions = {
     httpOnly: true,

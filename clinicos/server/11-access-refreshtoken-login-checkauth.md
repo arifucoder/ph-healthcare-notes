@@ -61,11 +61,11 @@ FRONTEND_URL: z.url({ protocol: /^https?$/ }),
 
 ```ts
 app.use(
-	cors({
-		origin: envVars.FRONTEND_URL,
-		credentials: true,
-		exposedHeaders: ["X-Session-Refresh", "X-Session-Expires-At", "X-Time-Remaining"],
-	}),
+    cors({
+        origin: envVars.FRONTEND_URL,
+        credentials: true,
+        exposedHeaders: ["X-Session-Refresh", "X-Session-Expires-At", "X-Time-Remaining"],
+    }),
 );
 ```
 
@@ -157,8 +157,8 @@ import * as z from "zod";
 import { jwtUtils, type TExpiresIn } from "./jwt";
 
 const authPayloadSchema = z.object({
-	userId: z.uuid(),
-	role: z.enum(Role),
+    userId: z.uuid(),
+    role: z.enum(Role),
 });
 
 export type TAuthPayload = z.infer<typeof authPayloadSchema>;
@@ -167,36 +167,36 @@ const ACCESS_TOKEN_EXPIRES_IN = envVars.ACCESS_TOKEN_EXPIRES_IN as TExpiresIn;
 const REFRESH_TOKEN_EXPIRES_IN = envVars.REFRESH_TOKEN_EXPIRES_IN as TExpiresIn;
 
 const getAccessToken = ({ userId, role }: TAuthPayload): string => {
-	return jwtUtils.createToken({ userId, role }, envVars.ACCESS_TOKEN_SECRET, ACCESS_TOKEN_EXPIRES_IN);
+    return jwtUtils.createToken({ userId, role }, envVars.ACCESS_TOKEN_SECRET, ACCESS_TOKEN_EXPIRES_IN);
 };
 
 const getRefreshToken = ({ userId, role }: TAuthPayload): string => {
-	return jwtUtils.createToken({ userId, role }, envVars.REFRESH_TOKEN_SECRET, REFRESH_TOKEN_EXPIRES_IN);
+    return jwtUtils.createToken({ userId, role }, envVars.REFRESH_TOKEN_SECRET, REFRESH_TOKEN_EXPIRES_IN);
 };
 
 const parseAuthPayload = (decoded: unknown): TAuthPayload => {
-	const parsed = authPayloadSchema.safeParse(decoded);
+    const parsed = authPayloadSchema.safeParse(decoded);
 
-	if (!parsed.success) {
-		throw new AppError(httpStatus.UNAUTHORIZED, "Invalid token payload");
-	}
+    if (!parsed.success) {
+        throw new AppError(httpStatus.UNAUTHORIZED, "Invalid token payload");
+    }
 
-	return parsed.data;
+    return parsed.data;
 };
 
 const verifyAccessToken = (token: string): TAuthPayload => {
-	return parseAuthPayload(jwtUtils.verifyToken(token, envVars.ACCESS_TOKEN_SECRET));
+    return parseAuthPayload(jwtUtils.verifyToken(token, envVars.ACCESS_TOKEN_SECRET));
 };
 
 const verifyRefreshToken = (token: string): TAuthPayload => {
-	return parseAuthPayload(jwtUtils.verifyToken(token, envVars.REFRESH_TOKEN_SECRET));
+    return parseAuthPayload(jwtUtils.verifyToken(token, envVars.REFRESH_TOKEN_SECRET));
 };
 
 export const tokenUtils = {
-	getAccessToken,
-	getRefreshToken,
-	verifyAccessToken,
-	verifyRefreshToken,
+    getAccessToken,
+    getRefreshToken,
+    verifyAccessToken,
+    verifyRefreshToken,
 };
 ```
 
@@ -296,8 +296,8 @@ export const cookieUtils = {
 
 ```ts
 const loginSchema = z.object({
-	email: emailSchema,
-	password: z.string().min(1, "Password is required").max(128),
+    email: emailSchema,
+    password: z.string().min(1, "Password is required").max(128),
 });
 ```
 
@@ -315,46 +315,46 @@ export type TLoginPayload = z.infer<typeof AuthValidation.loginSchema>;
 
 ```ts
 const login = async (payload: TLoginPayload) => {
-	const { email, password } = payload;
+    const { email, password } = payload;
 
-	// ভুল email/password বা verify-না-হওয়া email হলে Better Auth নিজেই throw করে
-	const { token: sessionToken, user: signedInUser } = await auth.api.signInEmail({
-		body: { email, password },
-	});
+    // ভুল email/password বা verify-না-হওয়া email হলে Better Auth নিজেই throw করে
+    const { token: sessionToken, user: signedInUser } = await auth.api.signInEmail({
+        body: { email, password },
+    });
 
-	const user = await prisma.user.findUniqueOrThrow({
-		where: { id: signedInUser.id },
-		select: {
-			id: true,
-			name: true,
-			email: true,
-			role: true,
-			isActive: true,
-			isDeleted: true,
-			needPasswordChange: true,
-		},
-	});
+    const user = await prisma.user.findUniqueOrThrow({
+        where: { id: signedInUser.id },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+            isDeleted: true,
+            needPasswordChange: true,
+        },
+    });
 
-	if (!user.isActive || user.isDeleted) {
-		// signInEmail আগেই session বানিয়ে ফেলেছে, সেটা রেখে দেওয়া যাবে না
-		await prisma.session.deleteMany({ where: { token: sessionToken } });
-		throw new AppError(httpStatus.FORBIDDEN, "Your account is disabled. Contact the clinic");
-	}
+    if (!user.isActive || user.isDeleted) {
+        // signInEmail আগেই session বানিয়ে ফেলেছে, সেটা রেখে দেওয়া যাবে না
+        await prisma.session.deleteMany({ where: { token: sessionToken } });
+        throw new AppError(httpStatus.FORBIDDEN, "Your account is disabled. Contact the clinic");
+    }
 
-	const tokenPayload = { userId: user.id, role: user.role };
+    const tokenPayload = { userId: user.id, role: user.role };
 
-	return {
-		accessToken: tokenUtils.getAccessToken(tokenPayload),
-		refreshToken: tokenUtils.getRefreshToken(tokenPayload),
-		sessionToken,
-		user: {
-			id: user.id,
-			name: user.name,
-			email: user.email,
-			role: user.role,
-			needPasswordChange: user.needPasswordChange,
-		},
-	};
+    return {
+        accessToken: tokenUtils.getAccessToken(tokenPayload),
+        refreshToken: tokenUtils.getRefreshToken(tokenPayload),
+        sessionToken,
+        user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            needPasswordChange: user.needPasswordChange,
+        },
+    };
 };
 ```
 
@@ -364,17 +364,17 @@ const login = async (payload: TLoginPayload) => {
 
 ```ts
 const login = catchAsync(async (req, res) => {
-	const { accessToken, refreshToken, sessionToken, user } = await AuthService.login(req.body);
+    const { accessToken, refreshToken, sessionToken, user } = await AuthService.login(req.body);
 
-	cookieUtils.setAccessTokenCookie(res, accessToken);
-	cookieUtils.setRefreshTokenCookie(res, refreshToken);
-	cookieUtils.setSessionCookie(res, sessionToken);
+    cookieUtils.setAccessTokenCookie(res, accessToken);
+    cookieUtils.setRefreshTokenCookie(res, refreshToken);
+    cookieUtils.setSessionCookie(res, sessionToken);
 
-	sendResponse(res, {
-		statusCode: httpStatus.OK,
-		message: "Logged in successfully",
-		data: user,
-	});
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        message: "Logged in successfully",
+        data: user,
+    });
 });
 ```
 
@@ -394,11 +394,11 @@ router.post("/login", authRateLimiter, validateRequest(AuthValidation.loginSchem
 import type { TAuthPayload } from "@/app/utils/token";
 
 declare global {
-	namespace Express {
-		interface Request {
-			user?: TAuthPayload;
-		}
-	}
+    namespace Express {
+        interface Request {
+            user?: TAuthPayload;
+        }
+    }
 }
 ```
 
@@ -420,43 +420,72 @@ export const STAFF = [...ADMINS, Role.DOCTOR] as const;
 
 // checkAuth() = শুধু login থাকলেই চলবে; checkAuth(...ADMINS) = role-ও মিলতে হবে
 export const checkAuth = (...allowedRoles: Role[]): RequestHandler => {
-    return async (req, _res, next) => {
-        const sessionToken = cookieUtils.getCookie(req, COOKIE_NAMES.session);
-        const accessToken = cookieUtils.getCookie(req, COOKIE_NAMES.accessToken);
+	return async (req, _res, next) => {
+		const sessionToken = cookieUtils.getCookie(req, COOKIE_NAMES.session);
+		const accessToken = cookieUtils.getCookie(req, COOKIE_NAMES.accessToken);
 
-        if (!sessionToken || !accessToken) {
-            throw new AppError(httpStatus.UNAUTHORIZED, "You are not logged in");
-        }
+		if (!sessionToken || !accessToken) {
+			throw new AppError(httpStatus.UNAUTHORIZED, "You are not logged in");
+		}
 
-        // আগে সস্তা কাজ: DB ছাড়াই signature + expiry যাচাই
-        const payload = tokenUtils.verifyAccessToken(accessToken);
+		// আগে সস্তা কাজ: DB ছাড়াই signature + expiry যাচাই
+		const payload = tokenUtils.verifyAccessToken(accessToken);
 
-        const session = await prisma.session.findUnique({
-            where: { token: sessionToken },
-            select: {
-                userId: true,
-                expiresAt: true,
-                user: { select: { role: true, isActive: true, isDeleted: true } },
-            },
-        });
+		const session = await prisma.session.findUnique({
+			where: { token: sessionToken },
+			select: {
+				userId: true,
+				expiresAt: true,
+				user: { select: { role: true, isActive: true, isDeleted: true } },
+			},
+		});
 
-        if (!session || session.expiresAt <= new Date() || session.userId !== payload.userId) {
-            throw new AppError(httpStatus.UNAUTHORIZED, "Session expired. Please log in again");
-        }
+		if (!session || session.expiresAt <= new Date() || session.userId !== payload.userId) {
+			throw new AppError(httpStatus.UNAUTHORIZED, "Session expired. Please log in again");
+		}
 
-        if (!session.user.isActive || session.user.isDeleted) {
-            throw new AppError(httpStatus.FORBIDDEN, "Your account is disabled. Contact the clinic");
-        }
+		if (!session.user.isActive || session.user.isDeleted) {
+			throw new AppError(httpStatus.FORBIDDEN, "Your account is disabled. Contact the clinic");
+		}
 
-        // role নিচ্ছি DB থেকে, token থেকে না: admin role বদলালে সাথে সাথে কার্যকর হয়
-        const { role } = session.user;
+		// role নিচ্ছি DB থেকে, token থেকে না: admin role বদলালে সাথে সাথে কার্যকর হয়
+		const { role } = session.user;
 
-        if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
-            throw new AppError(httpStatus.FORBIDDEN, "You do not have permission to do this");
-        }
+		if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+			throw new AppError(httpStatus.FORBIDDEN, "You do not have permission to do this");
+		}
 
-        req.user = { userId: session.userId, role };
-        next();
-    };
+		req.user = { userId: session.userId, role };
+		next();
+	};
 };
 ```
+
+## ১১. `getAuthUser` helper
+
+**File:** `src/app/shared/getAuthUser.ts`
+
+```ts
+import type { TAuthPayload } from "@/app/utils/token";
+import type { Request } from "express";
+
+// checkAuth পার হওয়া route-এ req.user সবসময় থাকে।
+// না থাকলে route-এ checkAuth বসাতে ভুল হয়েছে: এটা আমাদের bug, user-এর দোষ না, তাই 500
+export const getAuthUser = (req: Request): TAuthPayload => {
+	if (!req.user) {
+		throw new Error("getAuthUser called on a route without checkAuth");
+	}
+
+	return req.user;
+};
+```
+
+### ১১.১ এটা কেন লাগে
+
+তোমার `express.d.ts`-এ `user?: TAuthPayload` লেখা, মানে optional। তাই প্রতিটা controller-এ `req.user.userId` লিখলে TypeScript বলবে "`req.user` `undefined` হতে পারে"। এর তিনটা সমাধান:
+
+| উপায় | সমস্যা |
+|---|---|
+| `req.user!.userId` | TypeScript-কে চুপ করানো; ভুল হলে runtime-এ crash |
+| প্রতিটা controller-এ `if (!req.user)` | একই code বারবার |
+| `getAuthUser(req)` | check এক জায়গায়, ফেরত আসে নিশ্চিত `TAuthPayload` |

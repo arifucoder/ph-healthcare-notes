@@ -15,7 +15,8 @@ apps/api/src/
 ├─ app.ts                          ✏️ cookieParser() (+ cors credentials: true)
 └─ app/
    ├─ config/env.ts                ✏️ FRONTEND_URL (cors-এর জন্য)
-   ├─ utils/                       🆕
+   ├─ utils/  
+   │  ├─ duration.ts
    │  ├─ jwt.ts                    🆕 jsonwebtoken-এর পাতলা wrapper
    │  ├─ token.ts                  🆕 access/refresh token বানানো
    │  └─ cookie.ts                 🆕 cookie set/clear + options
@@ -143,6 +144,41 @@ export const jwtUtils = {
     decodeToken,
 };
 ```
+src/app/utils/duration.ts
+```ts
+const UNIT_MS = {
+	ms: 1,
+	s: 1000,
+	m: 60_000,
+	h: 3_600_000,
+	d: 86_400_000,
+	w: 604_800_000,
+	y: 31_557_600_000,
+} as const;
+
+type TDurationUnit = keyof typeof UNIT_MS;
+
+const isDurationUnit = (unit: string): unit is TDurationUnit => {
+	return Object.hasOwn(UNIT_MS, unit);
+};
+
+export const durationToMs = (duration: string): number => {
+	const match = /^(\d+(?:\.\d+)?)\s?(ms|s|m|h|d|w|y)$/i.exec(duration);
+	const value = Number(match?.[1]);
+	const unit = match?.[2]?.toLowerCase();
+
+	if (!unit || !isDurationUnit(unit) || Number.isNaN(value)) {
+		throw new Error(`Invalid duration: ${duration}`);
+	}
+
+	return Math.round(value * UNIT_MS[unit]);
+};
+
+export const durationToSeconds = (duration: string): number => {
+	return Math.floor(durationToMs(duration) / 1000);
+};
+```
+
 
 ## ৫. Token utility
 
@@ -154,49 +190,50 @@ import { AppError } from "@/app/errorHelpers/AppError";
 import { Role } from "@/generated/prisma/enums";
 import httpStatus from "http-status";
 import * as z from "zod";
-import { jwtUtils, type TExpiresIn } from "./jwt";
+import { durationToSeconds } from "./duration";
+import { jwtUtils } from "./jwt";
 
 const authPayloadSchema = z.object({
-    userId: z.uuid(),
-    role: z.enum(Role),
+	userId: z.uuid(),
+	role: z.enum(Role),
 });
 
 export type TAuthPayload = z.infer<typeof authPayloadSchema>;
 
-const ACCESS_TOKEN_EXPIRES_IN = envVars.ACCESS_TOKEN_EXPIRES_IN as TExpiresIn;
-const REFRESH_TOKEN_EXPIRES_IN = envVars.REFRESH_TOKEN_EXPIRES_IN as TExpiresIn;
+const ACCESS_TOKEN_EXPIRES_IN = durationToSeconds(envVars.ACCESS_TOKEN_EXPIRES_IN);
+const REFRESH_TOKEN_EXPIRES_IN = durationToSeconds(envVars.REFRESH_TOKEN_EXPIRES_IN);
 
 const getAccessToken = ({ userId, role }: TAuthPayload): string => {
-    return jwtUtils.createToken({ userId, role }, envVars.ACCESS_TOKEN_SECRET, ACCESS_TOKEN_EXPIRES_IN);
+	return jwtUtils.createToken({ userId, role }, envVars.ACCESS_TOKEN_SECRET, ACCESS_TOKEN_EXPIRES_IN);
 };
 
 const getRefreshToken = ({ userId, role }: TAuthPayload): string => {
-    return jwtUtils.createToken({ userId, role }, envVars.REFRESH_TOKEN_SECRET, REFRESH_TOKEN_EXPIRES_IN);
+	return jwtUtils.createToken({ userId, role }, envVars.REFRESH_TOKEN_SECRET, REFRESH_TOKEN_EXPIRES_IN);
 };
 
 const parseAuthPayload = (decoded: unknown): TAuthPayload => {
-    const parsed = authPayloadSchema.safeParse(decoded);
+	const parsed = authPayloadSchema.safeParse(decoded);
 
-    if (!parsed.success) {
-        throw new AppError(httpStatus.UNAUTHORIZED, "Invalid token payload");
-    }
+	if (!parsed.success) {
+		throw new AppError(httpStatus.UNAUTHORIZED, "Invalid token payload");
+	}
 
-    return parsed.data;
+	return parsed.data;
 };
 
 const verifyAccessToken = (token: string): TAuthPayload => {
-    return parseAuthPayload(jwtUtils.verifyToken(token, envVars.ACCESS_TOKEN_SECRET));
+	return parseAuthPayload(jwtUtils.verifyToken(token, envVars.ACCESS_TOKEN_SECRET));
 };
 
 const verifyRefreshToken = (token: string): TAuthPayload => {
-    return parseAuthPayload(jwtUtils.verifyToken(token, envVars.REFRESH_TOKEN_SECRET));
+	return parseAuthPayload(jwtUtils.verifyToken(token, envVars.REFRESH_TOKEN_SECRET));
 };
 
 export const tokenUtils = {
-    getAccessToken,
-    getRefreshToken,
-    verifyAccessToken,
-    verifyRefreshToken,
+	getAccessToken,
+	getRefreshToken,
+	verifyAccessToken,
+	verifyRefreshToken,
 };
 ```
 
@@ -207,78 +244,56 @@ export const tokenUtils = {
 ```ts
 import { envVars, isProduction } from "@/app/config/env";
 import type { CookieOptions, Request, Response } from "express";
+import { durationToMs } from "./duration";
 
 export const COOKIE_NAMES = {
-    accessToken: "accessToken",
-    refreshToken: "refreshToken",
-    session: "better-auth.session_token",
+	accessToken: "accessToken",
+	refreshToken: "refreshToken",
+	session: "better-auth.session_token",
 } as const;
-
-const UNIT_MS = {
-    ms: 1,
-    s: 1000,
-    m: 60_000,
-    h: 3_600_000,
-    d: 86_400_000,
-    w: 604_800_000,
-    y: 31_557_600_000,
-} as const;
-
-const durationToMs = (duration: string): number => {
-    const match = /^(\d+(?:\.\d+)?)\s?(ms|s|m|h|d|w|y)$/i.exec(duration);
-    const value = Number(match?.[1]);
-    const unit = match?.[2]?.toLowerCase() as keyof typeof UNIT_MS | undefined;
-
-    if (!unit || Number.isNaN(value)) {
-        throw new Error(`Invalid duration: ${duration}`);
-    }
-
-    return Math.round(value * UNIT_MS[unit]);
-};
 
 const ACCESS_TOKEN_MAX_AGE = durationToMs(envVars.ACCESS_TOKEN_EXPIRES_IN);
 export const REFRESH_TOKEN_MAX_AGE = durationToMs(envVars.REFRESH_TOKEN_EXPIRES_IN);
 
 const baseCookieOptions: CookieOptions = {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: "lax",
-    path: "/",
-    ...(envVars.COOKIE_DOMAIN && { domain: envVars.COOKIE_DOMAIN }),
+	httpOnly: true,
+	secure: isProduction,
+	sameSite: "lax",
+	path: "/",
+	...(envVars.COOKIE_DOMAIN && { domain: envVars.COOKIE_DOMAIN }),
 };
 
 const setAccessTokenCookie = (res: Response, token: string) => {
-    res.cookie(COOKIE_NAMES.accessToken, token, { ...baseCookieOptions, maxAge: ACCESS_TOKEN_MAX_AGE });
+	res.cookie(COOKIE_NAMES.accessToken, token, { ...baseCookieOptions, maxAge: ACCESS_TOKEN_MAX_AGE });
 };
 
 const setRefreshTokenCookie = (res: Response, token: string) => {
-    res.cookie(COOKIE_NAMES.refreshToken, token, { ...baseCookieOptions, maxAge: REFRESH_TOKEN_MAX_AGE });
+	res.cookie(COOKIE_NAMES.refreshToken, token, { ...baseCookieOptions, maxAge: REFRESH_TOKEN_MAX_AGE });
 };
 
 const setSessionCookie = (res: Response, token: string) => {
-    res.cookie(COOKIE_NAMES.session, token, { ...baseCookieOptions, maxAge: REFRESH_TOKEN_MAX_AGE });
+	res.cookie(COOKIE_NAMES.session, token, { ...baseCookieOptions, maxAge: REFRESH_TOKEN_MAX_AGE });
 };
 
 const clearAuthCookies = (res: Response) => {
-    res.clearCookie(COOKIE_NAMES.accessToken, baseCookieOptions);
-    res.clearCookie(COOKIE_NAMES.refreshToken, baseCookieOptions);
-    res.clearCookie(COOKIE_NAMES.session, baseCookieOptions);
+	res.clearCookie(COOKIE_NAMES.accessToken, baseCookieOptions);
+	res.clearCookie(COOKIE_NAMES.refreshToken, baseCookieOptions);
+	res.clearCookie(COOKIE_NAMES.session, baseCookieOptions);
 };
 
 const getCookie = (req: Request, name: string): string | undefined => {
-    const value: unknown = req.cookies?.[name];
-    return typeof value === "string" && value.length > 0 ? value : undefined;
+	const value: unknown = req.cookies?.[name];
+	return typeof value === "string" && value.length > 0 ? value : undefined;
 };
 
 export const cookieUtils = {
-    setAccessTokenCookie,
-    setRefreshTokenCookie,
-    setSessionCookie,
-    clearAuthCookies,
-    getCookie,
+	setAccessTokenCookie,
+	setRefreshTokenCookie,
+	setSessionCookie,
+	clearAuthCookies,
+	getCookie,
 };
 ```
-
 ## ৭. এখন কোন ধাপে আছি
 
 ```text

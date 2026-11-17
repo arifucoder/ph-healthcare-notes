@@ -361,3 +361,101 @@ import { DoctorRoutes } from "@/app/module/doctor/doctor.route";
 // moduleRoutes-এর ভেতরে
 { path: "/doctors", route: DoctorRoutes },
 ```
+
+
+## doctor profile update profile for his own doctor profile
+doctor.validation.ts
+```ts
+// doctor নিজে শুধু এই তিনটা বদলাতে পারে; অন্য field body-তে এলে z.object ফেলে দেয়
+const updateMyProfileSchema = z
+	.object({
+		name: personNameSchema.optional(),
+		phone: phoneSchema.nullable().optional(),
+		bio: z.string().trim().max(1000).nullable().optional(),
+	})
+	.refine((data) => Object.keys(data).length > 0, {
+		error: "Provide at least one field to update",
+	});
+```
+
+doctor.interface.ts
+```ts
+export type TUpdateMyProfilePayload = z.infer<typeof DoctorValidation.updateMyProfileSchema>;
+```
+
+doctor.service.ts
+```ts
+// id client থেকে না, session-এর userId থেকে
+const updateMyProfile = async (userId: string, payload: TUpdateMyProfilePayload) => {
+	const { name, phone, bio } = payload;
+
+	const doctor = await prisma.doctorProfile.findFirst({
+		where: { userId, ...notDeleted },
+		select: { id: true },
+	});
+
+	if (!doctor) {
+		throw new AppError(httpStatus.NOT_FOUND, "Doctor profile not found");
+	}
+
+	const updated = await prisma.$transaction(async (tx) => {
+		// name/phone থাকে user-এ
+		if (name !== undefined || phone !== undefined) {
+			await tx.user.update({
+				where: { id: userId },
+				data: { name, phone },
+			});
+		}
+
+		// bio থাকে profile-এ; না পাঠালে undefined, Prisma এড়িয়ে যায়
+		return tx.doctorProfile.update({
+			where: { id: doctor.id },
+			data: { bio },
+			select: doctorSelect,
+		});
+	});
+
+	return toDoctorResponse(updated);
+};
+```
+
+doctor.controller.ts
+```ts
+const updateMyProfile = catchAsync(async (req, res) => {
+	const { userId } = getAuthUser(req);
+	const result = await DoctorService.updateMyProfile(userId, req.body);
+
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		message: "Profile updated successfully",
+		data: result,
+	});
+});
+```
+
+doctor.route.ts
+
+```ts
+import { ADMINS, checkAuth } from "@/app/middleware/checkAuth";
+import { validateRequest } from "@/app/middleware/validateRequest";
+import { Role } from "@/generated/prisma/enums";
+import { Router } from "express";
+import { DoctorController } from "./doctor.controller";
+import { DoctorValidation } from "./doctor.validation";
+
+const router = Router();
+
+// ---------- doctor নিজে (router.use-এর আগে, নাহলে ADMINS guard আটকে দেবে) ----------
+router.patch(
+	"/me",
+	checkAuth(Role.DOCTOR),
+	validateRequest(DoctorValidation.updateMyProfileSchema),
+	DoctorController.updateMyProfile,
+);
+
+// ---------- এর নিচে সব admin-only ----------
+router.use(checkAuth(...ADMINS));
+
+router.get("/", DoctorController.getAllDoctors);
+// ... বাকি সব যেমন আছে
+```

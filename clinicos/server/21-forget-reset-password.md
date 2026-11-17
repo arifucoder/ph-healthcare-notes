@@ -1,5 +1,10 @@
-১. apps/api/templates/emails/passwordResetCode.ejs (নতুন file)
-```html
+# ClinicOS — Forget Password ও Reset Password (Email OTP)
+
+## ১. Email template
+
+**File:** `apps/api/templates/emails/passwordResetCode.ejs` (নতুন file)
+
+```ejs
 <h1
 	class="h1"
 	style="
@@ -84,7 +89,12 @@
 </table>
 ```
 
-২. src/app/shared/renderEmail.ts: TEmailTemplates-এ যোগ
+## ২. Template-এর type
+
+`TEmailTemplates`-এ যোগ করো:
+
+**File:** `src/app/shared/renderEmail.ts`
+
 ```ts
 export type TEmailTemplates = {
 	verificationCode: {
@@ -105,8 +115,12 @@ export type TEmailTemplates = {
 };
 ```
 
-৩. src/app/lib/auth.ts: দুই জায়গায় বদল
-(ক) emailAndPassword:
+## ৩. `auth.ts`-এ দুই জায়গায় বদল
+
+**File:** `src/app/lib/auth.ts`
+
+### ৩.১ `emailAndPassword`
+
 ```ts
 	emailAndPassword: {
 		enabled: true,
@@ -123,7 +137,10 @@ export type TEmailTemplates = {
 	},
 ```
 
-(খ) emailOTP-এর ভেতরে পুরো sendVerificationOTP এটা দিয়ে বদলাও:
+### ৩.২ `sendVerificationOTP`
+
+`emailOTP`-এর ভেতরে পুরো `sendVerificationOTP` এটা দিয়ে বদলাও:
+
 ```ts
 			async sendVerificationOTP({ email, otp, type }) {
 				if (type !== "email-verification" && type !== "forget-password") return;
@@ -167,7 +184,10 @@ export type TEmailTemplates = {
 			},
 ```
 
-৪. auth.validation.ts
+## ৪. Validation
+
+**File:** `auth.validation.ts`
+
 ```ts
 const otpSchema = z.string().regex(/^\d{6}$/, "Code must be exactly 6 digits");
 
@@ -195,15 +215,22 @@ export const AuthValidation = {
 };
 ```
 
-৫. auth.interface.ts
+## ৫. Interface
+
+**File:** `auth.interface.ts`
+
 ```ts
 export type TForgetPasswordPayload = z.infer<typeof AuthValidation.forgetPasswordSchema>;
 export type TResetPasswordPayload = z.infer<typeof AuthValidation.resetPasswordSchema>;
 ```
 
-৬. auth.service.ts
+## ৬. Service
 
-import-এ দুটো type যোগ করো (TForgetPasswordPayload, TResetPasswordPayload), তারপর:
+1. Import-এ দুটো type যোগ করো (`TForgetPasswordPayload`, `TResetPasswordPayload`)।
+2. তারপর:
+
+**File:** `auth.service.ts`
+
 ```ts
 type TResetCheckUser = { isActive: boolean; isDeleted: boolean; emailVerified: boolean } | null;
 
@@ -251,7 +278,10 @@ export const AuthService = {
 };
 ```
 
-৭. auth.controller.ts
+## ৭. Controller
+
+**File:** `auth.controller.ts`
+
 ```ts
 const forgetPassword = catchAsync(async (req, res) => {
 	await AuthService.forgetPassword(req.body);
@@ -283,7 +313,10 @@ export const AuthController = {
 };
 ```
 
-৮. auth.route.ts
+## ৮. Route
+
+**File:** `auth.route.ts`
+
 ```ts
 router.post(
 	"/forget-password",
@@ -298,4 +331,3 @@ router.post(
 	AuthController.resetPassword,
 );
 ```
-

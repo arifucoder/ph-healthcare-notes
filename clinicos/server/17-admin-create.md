@@ -22,8 +22,8 @@ Admin আর doctor create করার সময় create করার পা�
 </h1>
 
 <p style="margin: 0 0 24px 0">
-	Hi <%= name %>, an <strong style="color: #0f172a"><%= roleLabel %></strong> account has been created for you. Use
-	the details below to sign in. You will be asked to set your own password the first time.
+    Hi <%= name %>, your <strong style="color: #0f172a"><%= roleLabel %></strong> account has been created. Use the
+    details below to sign in. You will be asked to set your own password the first time.
 </p>
 
 <!-- credentials box -->
